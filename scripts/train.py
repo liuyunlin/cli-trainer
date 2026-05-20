@@ -14,6 +14,12 @@
   train.py --logs <job_id> [--system]            查看日志
   train.py --diagnose <job_id>                   主动诊断状态、system log 和 stdout
   train.py --cancel <job_id>                     取消任务
+  train.py --generate-dataset-readme FILE --train-data REPO_ID --train-file F --readme-out README.md
+                                                生成数据集 README
+  train.py --generate-model-readme JOB_ID --readme-out README.md
+                                                生成模型 README
+  train.py --push-readme REPO_ID --readme-file README.md
+                                                上传 README.md 到 AI Studio Git 仓库
 """
 
 from __future__ import annotations
@@ -28,7 +34,9 @@ import re
 import sys
 import time
 import warnings
+import base64
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
@@ -931,6 +939,365 @@ def cmd_verify_upload(args: argparse.Namespace) -> None:
     print()
 
 
+# --------------------------- README publishing -------------------- #
+
+def _json_value_text(value: object) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return " ".join(str(v) for v in value if v is not None).strip()
+    return str(value).strip()
+
+
+def _sample_prompt_answer(obj: dict) -> tuple[str, str]:
+    fmt = detect_format_obj(obj)
+    if fmt == "ernie":
+        return _json_value_text(obj.get("src")), _json_value_text(obj.get("tgt"))
+    if fmt == "alpaca":
+        prompt = _json_value_text(obj.get("instruction"))
+        extra = _json_value_text(obj.get("input"))
+        if extra:
+            prompt = f"{prompt}\n{extra}".strip()
+        return prompt, _json_value_text(obj.get("output") or obj.get("chosen"))
+    if fmt == "sharegpt":
+        messages = obj.get("conversations")
+        role_key = "from"
+        content_key = "value"
+        user_roles = {"human", "user"}
+        assistant_roles = {"gpt", "assistant"}
+        if not isinstance(messages, list):
+            messages = obj.get("messages")
+            role_key = "role"
+            content_key = "content"
+            user_roles = {"user"}
+            assistant_roles = {"assistant"}
+        prompt = ""
+        answer = ""
+        if isinstance(messages, list):
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    continue
+                role = msg.get(role_key)
+                content = _json_value_text(msg.get(content_key))
+                if not prompt and role in user_roles:
+                    prompt = content
+                if not answer and role in assistant_roles:
+                    answer = content
+        return prompt, answer
+    return "", ""
+
+
+def _truncate_text(text: str, limit: int = 240) -> str:
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) <= limit:
+        return text
+    return text[: limit - 1].rstrip() + "…"
+
+
+def _write_readme_text(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content.rstrip() + "\n", encoding="utf-8")
+    print(f"已生成：{path}")
+
+
+def _load_params_text(args: argparse.Namespace) -> dict:
+    if not args.params:
+        return {}
+    try:
+        parsed = json.loads(args.params)
+    except json.JSONDecodeError as e:
+        die(f"--params 不是合法的 JSON：{e}")
+        return {}
+    if not isinstance(parsed, dict):
+        die("--params 必须是 JSON object")
+        return {}
+    return parsed
+
+
+def cmd_generate_dataset_readme(args: argparse.Namespace) -> None:
+    path = Path(args.generate_dataset_readme)
+    if not path.exists():
+        die(f"文件不存在：{path}")
+    if not args.train_data:
+        die("--generate-dataset-readme 需要 --train-data")
+    if not args.train_file:
+        die("--generate-dataset-readme 需要 --train-file")
+
+    records, errors, data_kind, total_units = _load_data_records(path)
+    if not records:
+        die("训练文件中没有可用样本，无法生成 README")
+
+    format_counts: dict[str, int] = {}
+    prompt_lens: list[int] = []
+    answer_lens: list[int] = []
+    samples: list[tuple[str, str]] = []
+    for _lineno, obj, _preview in records:
+        fmt = detect_format_obj(obj)
+        format_counts[fmt] = format_counts.get(fmt, 0) + 1
+        prompt, answer = _sample_prompt_answer(obj)
+        if prompt:
+            prompt_lens.append(len(prompt))
+        if answer:
+            answer_lens.append(len(answer))
+        if prompt and answer and len(samples) < 3:
+            samples.append((prompt, answer))
+
+    detected = max(format_counts.keys(), key=lambda k: format_counts[k]) if format_counts else "unknown"
+    avg_prompt = sum(prompt_lens) / len(prompt_lens) if prompt_lens else 0
+    avg_answer = sum(answer_lens) / len(answer_lens) if answer_lens else 0
+    title = args.title or args.train_data.split("/", 1)[-1]
+    license_name = args.license or "Apache License 2.0"
+    container = "JSON 数组" if data_kind == "json_array" else "JSONL"
+    source = args.dataset_source or "由本地训练数据处理生成"
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    sample_lines = []
+    for i, (prompt, answer) in enumerate(samples, 1):
+        sample_lines.append(
+            f"### 样例 {i}\n\n"
+            f"**输入**：{_truncate_text(prompt)}\n\n"
+            f"**输出**：{_truncate_text(answer)}\n"
+        )
+    samples_md = "\n".join(sample_lines) if sample_lines else "暂无可展示样例。"
+
+    content = f"""---
+license: {license_name}
+---
+
+# {title}
+
+## 数据集简介
+
+本数据集用于 AI Studio 星河社区 CLI 训练。训练文件为 `{args.train_file}`，已整理为平台可直接读取的监督微调格式。
+
+## 基本信息
+
+| 项目 | 内容 |
+|------|------|
+| 数据集仓库 | `{args.train_data}` |
+| 训练文件 | `{args.train_file}` |
+| 本地来源文件 | `{path.name}` |
+| 数据来源 | {source} |
+| 文件容器 | {container} |
+| 主要格式 | {_fmt_label(detected)} |
+| 样本数 | {len(records)} |
+| 解析错误数 | {len(errors)} |
+| 平均输入长度 | {avg_prompt:.0f} 字符 |
+| 平均输出长度 | {avg_answer:.0f} 字符 |
+| 生成时间 | {generated_at} |
+
+## 格式说明
+
+训练数据只保留训练端需要的字段，避免额外元信息影响平台校验。ERNIE 模型应使用：
+
+```json
+{{"src": ["用户问题或指令"], "tgt": ["期望模型回答"]}}
+```
+
+开源模型可使用 Alpaca 或 ShareGPT 格式，具体以训练任务的 `baseModel` 和 `trainType` 为准。
+
+## 数据样例
+
+{samples_md}
+
+## 使用方式
+
+提交训练时指定：
+
+```bash
+python3 scripts/train.py --submit \\
+  --train-data "{args.train_data}" \\
+  --train-file "{args.train_file}" \\
+  --base-model "你的基座模型" \\
+  --params '{{"num_train_epochs": 3}}'
+```
+
+## 质量与限制
+
+- 请在训练前运行 `--check-data` 和 `--verify-upload`。
+- 如果包含医疗、法律、金融等专业内容，模型输出只能作为辅助参考，不应替代专业判断。
+- 如果训练文件来自公开数据集或二次处理数据，请确认原始数据许可允许再发布和模型训练。
+"""
+    _write_readme_text(Path(args.readme_out or "README.md"), content)
+
+
+def _soft_fetch_log(job_id: str, token: str, base_url: str) -> str:
+    url = base_url.rstrip("/") + f"/v1/train/jobs/{job_id}/master/output.log"
+    try:
+        resp = requests.get(url, headers={**headers(token), "Range": "bytes=0-1048575"}, timeout=30)
+    except requests.RequestException:
+        return ""
+    if resp.status_code >= 400:
+        return ""
+    return resp.content.decode("utf-8", errors="replace")
+
+
+def cmd_generate_model_readme(args: argparse.Namespace) -> None:
+    token = load_token(args)
+    job_id = args.generate_model_readme
+    status = api("GET", f"/v1/train/jobs/{job_id}", token, args.base_url)
+    output = status.get("modelOutputRepo") or {}
+    model_repo = output.get("modelRepo") or args.output_repo or ""
+    branch = output.get("branch") or "master"
+    state = status.get("state") or "unknown"
+    base_model = args.base_model or status.get("baseModel") or "未从任务接口获取"
+    train_type = status.get("trainType") or args.train_type or "SFT/Full"
+    train_data = args.train_data or ""
+    train_file = args.train_file or ""
+    params = _load_params_text(args)
+
+    log_content = _soft_fetch_log(job_id, token, args.base_url)
+    metrics = _parse_metrics(log_content.splitlines()) if log_content else []
+    loss_summary = "未解析到 loss；请结合训练日志或 TensorBoard Scalars 面板查看。"
+    if metrics:
+        losses = [m["loss"] for m in metrics if "loss" in m]
+        if losses:
+            first_loss = losses[0]
+            last_loss = losses[-1]
+            drop_pct = (first_loss - last_loss) / first_loss * 100 if first_loss > 0 else 0
+            loss_summary = f"起始 Loss {first_loss:.4f}，最终 Loss {last_loss:.4f}，变化 {drop_pct:.1f}%。"
+
+    title = args.title or (model_repo.split("/", 1)[-1] if model_repo else job_id)
+    license_name = args.license or "Apache License 2.0"
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    params_rows = "\n".join(f"| {k} | {v} |" for k, v in params.items()) or "| 未提供 | - |"
+    dataset_cell = f"`{train_data}`" if train_data else "未提供"
+    if train_data and train_file:
+        dataset_cell = f"`{train_data}` / `{train_file}`"
+
+    content = f"""---
+license: {license_name}
+---
+
+# {title}
+
+## 模型简介
+
+本模型通过 AI Studio 星河社区 CLI 训练任务微调得到。请结合训练数据范围和人工评测结果使用，不要把模型输出当作未经验证的事实来源。
+
+## 模型信息
+
+| 项目 | 内容 |
+|------|------|
+| 模型仓库 | `{model_repo or '未获取'}` |
+| 分支 | `{branch}` |
+| 训练任务 | `{job_id}` |
+| 任务状态 | `{state}` |
+| 基座模型 | `{base_model}` |
+| 训练方式 | `{train_type}` |
+| 训练数据 | {dataset_cell} |
+| 生成时间 | {generated_at} |
+
+## 训练配置
+
+| 超参数 | 值 |
+|--------|----|
+{params_rows}
+
+## 训练结果
+
+{loss_summary}
+
+TensorBoard 如可访问，优先查看 `Scalars` 面板中的 loss/lr 曲线；`Time Series` 面板空白不一定代表日志损坏。
+
+## 适用场景
+
+- 与训练数据格式和领域一致的文本生成或问答任务。
+- 需要固定输出风格、术语或结构的辅助生成任务。
+- 小规模 smoke 训练只用于验证链路，不代表最终效果。
+
+## 使用建议
+
+1. 先用训练集内样例确认模型是否学到目标格式。
+2. 再用改写后的同类问题检查泛化能力。
+3. 最后用领域外问题检查基础能力是否明显退化。
+
+## 局限性
+
+- 模型能力受训练数据质量、样本覆盖和超参数影响。
+- 如果训练样本较少，可能出现过拟合或只记住模板的情况。
+- 专业领域输出需要人工审核，不应替代专业判断。
+"""
+    _write_readme_text(Path(args.readme_out or "README.md"), content)
+
+
+def _git_content_optional(repo_id: str, file_path: str, token: str, ref: str = "master") -> dict | None:
+    repo = quote(repo_id.strip().strip("/"), safe="/")
+    path = quote(file_path.strip().strip("/"), safe="/")
+    url = f"{GIT_BASE_URL}/api/v1/repos/{repo}/contents/{path}"
+    try:
+        resp = requests.get(
+            url,
+            headers={"Authorization": f"token {token}"},
+            params={"ref": ref},
+            timeout=30,
+        )
+    except requests.RequestException as e:
+        die(f"读取 README 现状失败：{e}")
+        return None
+    if resp.status_code == 404:
+        return None
+    if resp.status_code >= 400:
+        die(f"读取 README 现状失败（HTTP {resp.status_code}）：{resp.text[:300]}")
+        return None
+    try:
+        body = resp.json()
+    except Exception:
+        die(f"读取 README 现状返回非 JSON（HTTP {resp.status_code}）：{resp.text[:300]}")
+        return None
+    return body if isinstance(body, dict) else None
+
+
+def cmd_push_readme(args: argparse.Namespace) -> None:
+    token = load_token(args)
+    repo_id = args.push_readme
+    if not repo_id or "/" not in repo_id:
+        die("--push-readme 需要形如 gitlogin/repo_name 的仓库路径")
+    if not args.readme_file:
+        die("--push-readme 需要 --readme-file")
+    readme_path = Path(args.readme_file)
+    if not readme_path.exists():
+        die(f"README 文件不存在：{readme_path}")
+
+    path_in_repo = args.path_in_repo or "README.md"
+    content = readme_path.read_bytes()
+    old = _git_content_optional(repo_id, path_in_repo, token)
+    if old and not args.overwrite:
+        sha = old.get("sha", "unknown")
+        html_url = old.get("html_url") or f"https://git.aistudio.baidu.com/{repo_id}/src/branch/master/{path_in_repo}"
+        die(
+            f"{repo_id}/{path_in_repo} 已存在，默认不会覆盖已有 README。\n"
+            f"现有文件 sha：{sha}\n"
+            f"文件页：{html_url}\n"
+            "请先合并用户已有内容，确认要覆盖时再加 --overwrite。"
+        )
+
+    payload: dict[str, Any] = {
+        "message": args.commit_message or f"docs: update {path_in_repo}",
+        "content": base64.b64encode(content).decode("ascii"),
+        "branch": "master",
+    }
+    method = "POST"
+    if old and old.get("sha"):
+        payload["sha"] = old["sha"]
+        method = "PUT"
+
+    repo = quote(repo_id.strip().strip("/"), safe="/")
+    path = quote(path_in_repo.strip().strip("/"), safe="/")
+    url = f"{GIT_BASE_URL}/api/v1/repos/{repo}/contents/{path}"
+    try:
+        resp = requests.request(method, url, headers={"Authorization": f"token {token}"}, json=payload, timeout=60)
+    except requests.RequestException as e:
+        die(f"上传 README 失败：{e}")
+        return
+    if resp.status_code >= 400:
+        die(f"上传 README 失败（HTTP {resp.status_code}）：{resp.text[:500]}")
+
+    action = "更新" if old else "创建"
+    print(f"[OK] 已{action} {repo_id}/{path_in_repo}")
+    print(f"文件页：https://git.aistudio.baidu.com/{repo_id}/src/branch/master/{path_in_repo}")
+
+
 # ------------------------------ env check -------------------- #
 
 def cmd_env_check() -> None:
@@ -1630,6 +1997,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--logs", metavar="JOB_ID", help="查看训练日志")
     p.add_argument("--system", action="store_true", help="查看系统日志（配合 --logs）")
     p.add_argument("--diagnose", metavar="JOB_ID", help="主动诊断任务状态、system log 和 stdout")
+    p.add_argument("--generate-dataset-readme", metavar="FILE", help="根据本地训练文件生成数据集 README")
+    p.add_argument("--generate-model-readme", metavar="JOB_ID", help="根据训练任务生成模型 README")
+    p.add_argument("--push-readme", metavar="REPO_ID", help="上传 README.md 到指定 AI Studio Git 仓库")
+    p.add_argument("--readme-file", metavar="FILE", help="README 文件路径（配合 --push-readme）")
+    p.add_argument("--readme-out", metavar="FILE", help="README 输出路径（配合 --generate-*-readme）")
+    p.add_argument("--title", metavar="TITLE", help="README 标题")
+    p.add_argument("--license", metavar="LICENSE", help="README frontmatter license，默认 Apache License 2.0")
+    p.add_argument("--dataset-source", metavar="TEXT", help="数据来源说明（配合 --generate-dataset-readme）")
+    p.add_argument("--path-in-repo", metavar="PATH", default="README.md", help="仓库内 README 路径（默认 README.md）")
+    p.add_argument("--commit-message", metavar="MSG", help="上传 README 的提交信息")
+    p.add_argument("--overwrite", action="store_true", help="配合 --push-readme：允许覆盖仓库中已有 README")
     p.add_argument("--cancel", metavar="JOB_ID", help="取消任务")
     p.add_argument("--open-tb", metavar="JOB_ID", help="任务 running 后打开 Tensorboard")
     p.add_argument("--train-summary", metavar="JOB_ID", help="训练完成后汇报 loss/lr 趋势")
@@ -1686,6 +2064,12 @@ def main() -> None:
         cmd_logs(args)
     elif args.diagnose:
         cmd_diagnose(args)
+    elif args.generate_dataset_readme:
+        cmd_generate_dataset_readme(args)
+    elif args.generate_model_readme:
+        cmd_generate_model_readme(args)
+    elif args.push_readme:
+        cmd_push_readme(args)
     elif args.cancel:
         cmd_cancel(args)
     elif args.open_tb:

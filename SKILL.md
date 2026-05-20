@@ -35,7 +35,7 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data my_data.jsonl
 6. **推荐超参** — 运行 `--suggest-params`，展示结果，**等用户确认后才提交**
 7. **提交训练** — 运行 `--submit`，拿到 jobId
 8. **监控训练** — 提交后运行 `--poll JOB_ID`；任务进入 running 且接口返回 `tensorboardUrl` 后自动打开 Tensorboard
-9. **取结果** — 训练完成后给出模型仓库地址和训练摘要
+9. **取结果并发布模型卡片** — 训练完成后给出模型仓库地址和训练摘要，生成并上传模型仓库 `README.md`，再检查标签和公开状态
 
 ---
 
@@ -202,6 +202,24 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data sharegpt_data.jsonl
    - 下载回本地后 `--check-data` 是否通过
    - 如果新 commit 和新 `mount Job` 仍循环“正在等待数据集下载完成...”，通常是平台挂载任务卡住；停止反复重传，保留 jobId、repo_id、commitId、mount Job 和上传校验结果给平台排查。
 
+**数据集 README 发布门禁**：训练文件上传验收后，生成数据集 README 并上传到同一个数据集仓库；不要等训练失败或用户提醒后再补。README 至少说明数据来源、样本数、训练格式、训练文件名、使用方式和限制。
+
+```bash
+python3 "$SKILL_PATH/scripts/train.py" \
+  --generate-dataset-readme "$LOCAL_FILE" \
+  --train-data "$REPO_ID" \
+  --train-file "$TRAIN_FILE" \
+  --readme-out dataset_README.md \
+  --title "$REPO_ID"
+
+python3 "$SKILL_PATH/scripts/train.py" \
+  --push-readme "$REPO_ID" \
+  --readme-file dataset_README.md \
+  --commit-message "docs: add dataset README"
+```
+
+`--push-readme` 默认只创建新 README；如果 README 已存在，会拒绝覆盖。先把用户手写内容合并到本地 README，确认要替换时再加 `--overwrite`。
+
 ### 推荐超参并确认
 
 ```bash
@@ -345,6 +363,29 @@ git push origin master
 ```
 
 克隆时用 `--filter=blob:none --no-checkout` + sparse-checkout 只拉 README，跳过 LFS 大文件，速度快且不会因 LFS 报错中断。
+
+也可以优先用脚本生成 README，再通过 AI Studio Git contents API 上传，避免手写模板或把 token 拼进 Git URL：
+
+```bash
+JOB_ID="训练任务ID"
+MODEL_REPO="训练成功后 status 里的 modelOutputRepo.modelRepo"
+
+python3 "$SKILL_PATH/scripts/train.py" \
+  --generate-model-readme "$JOB_ID" \
+  --base-model "$BASE_MODEL" \
+  --train-data "$REPO_ID" \
+  --train-file "$TRAIN_FILE" \
+  --params "$CONFIRMED_PARAMS" \
+  --readme-out model_README.md \
+  --title "$MODEL_REPO"
+
+python3 "$SKILL_PATH/scripts/train.py" \
+  --push-readme "$MODEL_REPO" \
+  --readme-file model_README.md \
+  --commit-message "docs: add model README"
+```
+
+生成的 README 不能保留占位符；如果用户有项目说明、论文链接、评测截图或推理示例，合并到 `model_README.md` 后再上传。`--push-readme` 默认拒绝覆盖已有 README；确认已经合并并需要替换时，再显式追加 `--overwrite`。
 
 **README 模板**（禁止保留任何 `{}` 占位符；模型名用"基座简称-领域-用途"如 `Qwen2.5-7B-客服助手`；超参从 `--params` JSON 提取；Loss 从 `--train-summary` 提取；适用场景根据数据和模型名推断 3-5 个具体业务动作）：
 
@@ -521,6 +562,12 @@ python3 "$SKILL_PATH/scripts/train.py" --cancel JOB_ID  # 取消卡住的任务
 --train-summary <job_id>         训练完成后汇报 loss/lr 趋势和健康状态
 --poll <job_id>                 持续轮询（阻塞终端，对话场景不推荐）
 --cancel <job_id>               取消任务
+--generate-dataset-readme FILE --train-data REPO_ID --train-file F --readme-out README.md
+                                 根据本地训练文件生成数据集 README
+--generate-model-readme JOB_ID --readme-out README.md
+                                 根据训练任务状态和日志生成模型 README
+--push-readme REPO_ID --readme-file README.md
+                                 上传 README.md 到 AI Studio Git 仓库；已有 README 时需加 --overwrite
 
 --api-key TOKEN / --env-file FILE / --base-url URL
 ```
