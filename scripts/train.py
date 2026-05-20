@@ -6,6 +6,8 @@
   train.py --check-data <file>                   检查数据格式
   train.py --verify-upload --train-data REPO_ID --train-file F [--local-file FILE]
                                                 验证数据集上传结果并打印回执
+  train.py --upload-plain-file FILE --train-data REPO_ID [--path-in-repo F]
+                                                通过 Git contents API 上传普通训练文件
   train.py --suggest-params <file> [--model-type ernie|llama]  推荐超参
   train.py --submit --base-model M --train-data REPO_ID [--train-file F] [--train-type T] [--params JSON]
   train.py --status <job_id>                     查看任务状态
@@ -21,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import base64
 import csv
 import json
 import math
@@ -195,6 +198,96 @@ def git_contents(repo_id: str, file_path: str, token: str, ref: str = "master") 
         die(f"Git 仓库 API 错误（HTTP {resp.status_code}）：{msg}")
 
     return body
+
+
+def _git_contents_optional(repo_id: str, file_path: str, token: str, ref: str = "master") -> dict | None:
+    repo = quote(repo_id.strip().strip("/"), safe="/")
+    path = quote(file_path.strip().strip("/"), safe="/")
+    url = f"{GIT_BASE_URL}/api/v1/repos/{repo}/contents/{path}"
+    try:
+        resp = requests.get(
+            url,
+            headers={"Authorization": f"token {token}"},
+            params={"ref": ref},
+            timeout=30,
+        )
+    except requests.RequestException as e:
+        die(f"读取 Git 仓库内容失败：{e}")
+        return None
+    if resp.status_code == 404:
+        return None
+    if resp.status_code >= 400:
+        die(f"读取 Git 仓库内容失败（HTTP {resp.status_code}）：{resp.text[:300]}")
+    return resp.json()
+
+
+def _decode_git_inline_content(info: dict) -> str:
+    content = (info.get("content") or "").strip()
+    if not content:
+        return ""
+    try:
+        return base64.b64decode(content).decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+def _is_lfs_pointer_text(text: str) -> bool:
+    return text.startswith("version https://git-lfs.github.com/spec/v1") and "\noid sha256:" in text
+
+
+def _git_write_file(repo_id: str, file_path: str, content: bytes, token: str, message: str, sha: str | None = None) -> dict:
+    repo = quote(repo_id.strip().strip("/"), safe="/")
+    path = quote(file_path.strip().strip("/"), safe="/")
+    url = f"{GIT_BASE_URL}/api/v1/repos/{repo}/contents/{path}"
+    payload: dict[str, Any] = {
+        "branch": "master",
+        "message": message,
+        "content": base64.b64encode(content).decode("ascii"),
+    }
+    method = "POST"
+    if sha:
+        payload["sha"] = sha
+        method = "PUT"
+    resp = requests.request(method, url, headers={"Authorization": f"token {token}"}, json=payload, timeout=180)
+    if resp.status_code >= 400:
+        die(f"写入 Git 仓库文件失败（HTTP {resp.status_code}）：{resp.text[:500]}")
+    return resp.json()
+
+
+def _remove_json_lfs_rules(repo_id: str, token: str, suffixes: set[str]) -> None:
+    info = _git_contents_optional(repo_id, ".gitattributes", token)
+    if not info:
+        print("未找到 .gitattributes，跳过 LFS 规则清理。")
+        return
+    text = _decode_git_inline_content(info)
+    if not text:
+        print("无法读取 .gitattributes 内容，跳过 LFS 规则清理。")
+        return
+    patterns = {f"*{suffix} " for suffix in suffixes if suffix in {".json", ".jsonl"}}
+    if not patterns:
+        return
+    kept: list[str] = []
+    removed: list[str] = []
+    for line in text.splitlines():
+        if any(line.startswith(pattern) and "filter=lfs" in line for pattern in patterns):
+            removed.append(line)
+        else:
+            kept.append(line)
+    if not removed:
+        print(".gitattributes 中没有需要移除的 JSON/JSONL LFS 规则。")
+        return
+    new_text = "\n".join(kept).rstrip() + "\n"
+    _git_write_file(
+        repo_id,
+        ".gitattributes",
+        new_text.encode("utf-8"),
+        token,
+        "chore: store JSON training files as plain text",
+        sha=info.get("sha"),
+    )
+    print("已移除 .gitattributes 中的 LFS 规则：")
+    for line in removed:
+        print(f"  - {line}")
 
 
 def _format_api_error(code: Any, msg: str) -> str:
@@ -945,7 +1038,22 @@ def cmd_verify_upload(args: argparse.Namespace) -> None:
         print(f"  文件页：         {html_url}")
     print("-" * 55)
 
-    if is_lfs is not False:
+    inline_text = _decode_git_inline_content(info)
+    is_lfs_pointer = _is_lfs_pointer_text(inline_text)
+
+    if is_lfs_pointer:
+        msg = (
+            "仓库端内容是 Git LFS pointer，而不是训练 JSON/JSONL 正文。"
+            "这通常是 .gitattributes 仍将 JSON/JSONL 设为 LFS，或 SDK 上传时回退到 LFS。"
+        )
+        if getattr(args, "strict_lfs", False):
+            die(
+                msg + "\n"
+                "请移除 .gitattributes 中的 JSON/JSONL LFS 规则后重新上传；"
+                "大文件可使用 --upload-plain-file --remove-json-lfs-rules。"
+            )
+        print(f"[!]  {msg}")
+    elif is_lfs is not False:
         msg = (
             "训练文件 is_lfs:true。推荐修复为普通 JSON/JSONL（is_lfs:false），"
             "这样下载回验和 waiting_data 排查更可靠；实测部分 LFS 文件也可能训练成功。"
@@ -967,7 +1075,48 @@ def cmd_verify_upload(args: argparse.Namespace) -> None:
     print(f"  --train-file {args.train_file}")
     if is_lfs is not False:
         print("  # 注意：当前训练文件 is_lfs:true。若后续卡在 waiting_data，先修复 LFS 后重提。")
+    if is_lfs_pointer:
+        print("  # 注意：当前文件是 LFS pointer，训练端很可能无法按 JSON/JSONL 读取。")
     print()
+
+
+def cmd_upload_plain_file(args: argparse.Namespace) -> None:
+    token = load_token(args)
+    if not args.train_data:
+        die("--upload-plain-file 需要 --train-data")
+    local_path = Path(args.upload_plain_file)
+    if not local_path.exists():
+        die(f"本地文件不存在：{local_path}")
+    path_in_repo = args.path_in_repo or local_path.name
+    suffix = Path(path_in_repo).suffix.lower()
+
+    if args.remove_json_lfs_rules:
+        _remove_json_lfs_rules(args.train_data, token, {suffix})
+    elif suffix in {".json", ".jsonl"}:
+        attr = _git_contents_optional(args.train_data, ".gitattributes", token)
+        attr_text = _decode_git_inline_content(attr or {})
+        if f"*{suffix} filter=lfs" in attr_text:
+            die(
+                f".gitattributes 仍会把 *{suffix} 上传为 LFS。\n"
+                "如确认训练文件需要作为普通 JSON/JSONL 上传，请加 --remove-json-lfs-rules 后重试。"
+            )
+
+    old = _git_contents_optional(args.train_data, path_in_repo, token)
+    data = local_path.read_bytes()
+    message = args.commit_message or f"upload plain {path_in_repo}"
+    _git_write_file(args.train_data, path_in_repo, data, token, message, sha=(old or {}).get("sha"))
+    print("[OK] 已通过 Git contents API 上传普通文件：")
+    print(f"  数据集：        {args.train_data}")
+    print(f"  仓库路径：      {path_in_repo}")
+    print(f"  本地文件：      {local_path}")
+    print(f"  文件大小：      {len(data)} bytes")
+    print()
+    print("建议继续执行：")
+    print(
+        f"  python3 {Path(__file__).name} --verify-upload "
+        f"--train-data {args.train_data} --train-file {path_in_repo} "
+        f"--local-file {local_path} --strict-lfs"
+    )
 
 
 # ------------------------------ env check -------------------- #
@@ -1426,7 +1575,11 @@ def _parse_metrics(lines: list[str]) -> list[dict]:
         m = re.search(r"\bloss[:\s=]+([0-9]+\.[0-9]+(?:e[+-]?[0-9]+)?)", line, re.IGNORECASE)
         if m:
             entry: dict = {"loss": float(m.group(1))}
-            lr_m = re.search(r"\blr[:\s=]+([0-9]+\.[0-9]+e[+-]?[0-9]+|[0-9]+\.[0-9]+)", line, re.IGNORECASE)
+            lr_m = re.search(
+                r"\b(?:lr|learning_rate)[:\s=]+([0-9]+(?:\.[0-9]+)?(?:e[+-]?[0-9]+)?)",
+                line,
+                re.IGNORECASE,
+            )
             if lr_m:
                 try:
                     entry["learning_rate"] = float(lr_m.group(1))
@@ -1870,6 +2023,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--verify-token", action="store_true", help="验证 Access Token 是否有效")
     p.add_argument("--verify-upload", action="store_true", help="验证数据集上传结果并打印回执")
     p.add_argument("--strict-lfs", action="store_true", help="配合 --verify-upload：is_lfs 不是 false 时直接失败")
+    p.add_argument("--upload-plain-file", metavar="FILE", help="通过 Git contents API 上传普通文件，避免 JSON/JSONL 被 LFS pointer 替代")
+    p.add_argument("--path-in-repo", metavar="PATH", help="仓库内目标路径（配合 --upload-plain-file，默认使用本地文件名）")
+    p.add_argument("--commit-message", metavar="MSG", help="提交信息（配合 --upload-plain-file）")
+    p.add_argument("--remove-json-lfs-rules", action="store_true", help="上传普通 JSON/JSONL 前移除 .gitattributes 中对应 LFS 规则")
     p.add_argument("--list-models", action="store_true", help="列出平台白名单中所有可用模型")
     p.add_argument("--list-datasets", action="store_true", help="列出内置推荐数据集（不用自己准备数据）")
     p.add_argument("--check-data", metavar="FILE", help="检查数据格式")
@@ -1925,6 +2082,10 @@ def main() -> None:
         if not args.train_file:
             parser.error("--verify-upload 需要 --train-file")
         cmd_verify_upload(args)
+    elif args.upload_plain_file:
+        if not args.train_data:
+            parser.error("--upload-plain-file 需要 --train-data")
+        cmd_upload_plain_file(args)
     elif args.suggest_params:
         cmd_suggest_params(args)
     elif args.submit:

@@ -154,16 +154,34 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data sharegpt_data.jsonl
 3. **上传前处理 JSON/JSONL 的 LFS 规则**
    - 预防优先：新仓库创建后、上传训练文件前，进入数据集详情页 → 文件列表 → `.gitattributes` → 编辑，删除训练文件扩展名对应的 LFS 规则，例如 `*.jsonl filter=lfs ...` 或 `*.json filter=lfs ...`，然后保存。
    - ERNIE 的 `src/tgt` JSONL、LlamaFactory 的 Alpaca/ShareGPT JSONL/JSON 都要检查；训练用 JSON/JSONL 推荐作为普通文件上传，便于下载回验和排查。
-   - 如果已经上传成 LFS：不要直接判定训练必然失败。已实测部分 `is_lfs:true` 文件也可能被 AI Studio 成功挂载并完成训练；但它会降低可回验性，也会让 `waiting_data` 排查更困难。若任务卡在 `waiting_data`，优先删除旧 LFS 训练文件、移除 `.gitattributes` 中 JSON/JSONL LFS 规则，然后按本上传小节第 5 步 SDK 方案或第 6 步 CLI 方案重新上传。
+   - 如果已经上传成 LFS：不要直接判定训练必然失败。已实测部分 `is_lfs:true` 文件也可能被 AI Studio 成功挂载并完成训练；但它会降低可回验性，也会让 `waiting_data` 排查更困难。若任务卡在 `waiting_data`，优先删除旧 LFS 训练文件、移除 `.gitattributes` 中 JSON/JSONL LFS 规则，然后按本上传小节第 5 步 SDK 方案或第 6 步 Git contents API 方案重新上传。
 
-4. **上传前检查文件大小**：普通文件超过 5MB 平台会拒绝，不要改走 LFS 绕过限制。超过 5MB 时先告知用户，可选：裁剪过长样本、减少数据量、拆分批次，或确认平台是否支持多文件训练。
+4. **上传前检查文件大小**：普通 SDK/CLI 上传超过约 5MB 可能被拒绝或回退到 LFS，不要为了绕过限制默认改走 LFS。训练必须保留全量 JSON/JSONL 时，优先使用脚本的 Git contents API 普通文件上传；仍需裁剪、拆分或降采样时，先征得用户确认并写 manifest。
 
 5. **用 SDK 上传数据集文件夹（推荐）**
    - 上传原则见 `references/aistudio_sdk_upload.md`；主规则是：完整 `repo_id`、一仓一数据集、token 只走环境变量、JSON/JSONL 优先不走 LFS。
    - SDK 日志出现 `201` 和 `Commit part 1 successful!` 才算提交成功；STS 分支的已知回退报错不单独视为失败。
-   - 上传后必须继续执行本上传小节第 6 步；不要只看 SDK 上传日志。
+   - 上传后必须继续执行本上传小节第 8 步；不要只看 SDK 上传日志。
 
-6. **用 CLI 上传单个训练文件（备选）**
+6. **用 Git contents API 上传普通 JSON/JSONL（大文件或 LFS pointer 时优先）**
+   ```bash
+   python3 "$SKILL_PATH/scripts/train.py" \
+     --upload-plain-file "$LOCAL_FILE" \
+     --train-data "$REPO_ID" \
+     --path-in-repo train.jsonl \
+     --remove-json-lfs-rules \
+     --commit-message "upload train.jsonl as plain file"
+
+   python3 "$SKILL_PATH/scripts/train.py" \
+     --verify-upload \
+     --train-data "$REPO_ID" \
+     --train-file train.jsonl \
+     --local-file "$LOCAL_FILE" \
+     --strict-lfs
+   ```
+   这条路径会在上传前移除 `.gitattributes` 中对应的 `*.json` / `*.jsonl` LFS 规则，并用 Git contents API 写入真实文件内容。`--verify-upload --strict-lfs` 会额外识别 Git LFS pointer 正文，避免只看 `is_lfs` 被误导。
+
+7. **用 CLI 上传单个训练文件（备选）**
    ```bash
    AISTUDIO_CLI="${AISTUDIO_CLI:-$(python3 -m site --user-base)/bin/aistudio}"
    [ -x "$AISTUDIO_CLI" ] || AISTUDIO_CLI="$(command -v aistudio)"
@@ -175,7 +193,7 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data sharegpt_data.jsonl
    `REPO_ID` 必须是详情页显示的完整 `repo_id`。如果出现 `preupload` 404，回到本上传小节第 2 步确认仓库已存在且路径无误。
    上传命令成功返回后，必须立刻主动告诉用户：训练文件已上传到哪个 `repo_id`、仓库内文件名是什么、接下来会做 `is_lfs` 和下载回验；不要等到提交训练后才暴露上传问题。
 
-7. **验证上传结果**
+8. **验证上传结果**
    ```bash
    python3 "$SKILL_PATH/scripts/train.py" \
      --verify-upload \
@@ -191,9 +209,10 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data sharegpt_data.jsonl
    - 文件大小：仓库大小与本地大小是否一致或接近
    - 下一步将使用的提交参数：`--train-data "$REPO_ID" --train-file "$TRAIN_FILE"`
 
-8. **卡在 `waiting_data` 时按顺序排查**
+9. **卡在 `waiting_data` 时按顺序排查**
    - `REPO_ID` 是否来自详情页，`gitlogin` 是否真实可写
    - `--train-file` 是否和仓库内文件名完全一致
+   - 若系统日志出现 `trainDataFiles 指定的文件不存在`，即使 Git API 能看到文件，也先改用根目录短文件名（如 `train.jsonl`）重新提交，并确认新 commit 已生成
    - 训练文件大小是否接近本地文件；若 `is_lfs:true`，优先修复为普通 JSON/JSONL 后重试
    - 下载回本地后 `--check-data` 是否通过
    - 如果新 commit 和新 `mount Job` 仍循环“正在等待数据集下载完成...”，通常是平台挂载任务卡住；停止反复重传，保留 jobId、repo_id、commitId、mount Job 和上传校验结果给平台排查。
@@ -481,6 +500,8 @@ print(resp.json())
 | 错误 | 原因 | 解决 |
 |------|------|------|
 | `waiting_data` 超过 10 分钟 | 常见根因：仓库/路径不对、文件名写错、LFS 指针、平台挂载异常 | 按序排查：1）确认 `repo_id` 来自详情页；2）核对 `--train-file` 和仓库实际文件名；3）确认文件大小接近本地文件；4）若 `is_lfs:true`，优先修复为普通 JSON/JSONL；5）下载回验 `--check-data`；6）若 system log 仍循环“正在等待数据集下载完成...”，说明可能是平台内部的数据集挂载任务卡住，保留 jobId 给平台排查，或取消后稍后重提 |
+| `trainDataFiles 指定的文件不存在` | 平台训练挂载侧没有读到指定路径；长文件名、子目录路径、旧 commit 或 LFS pointer 都可能触发 | 先用 `--verify-upload --strict-lfs` 检查内容不是 LFS pointer；若仍报错，把训练文件重新上传到仓库根目录短文件名（如 `train.jsonl`），新建 commit 后用同名 `--train-file` 重提 |
+| `--verify-upload` 显示文件只有百余字节 | 仓库里实际保存的是 Git LFS pointer 文本，不是 JSON/JSONL 正文 | 用 `--upload-plain-file ... --remove-json-lfs-rules` 覆盖为普通文件，再用 `--verify-upload --strict-lfs` 复验 |
 | 提交时报数据集权限错误 | 常见不是公开权限问题，而是仓库路径不对、`gitlogin` 不匹配或文件没传成功 | 确认真实 `gitlogin` 和完整 `repo_id`，用新版数据集仓库重新上传 |
 | "非 ERNIE 格式" | Alpaca 格式，或 src/tgt 值是字符串非列表 | `{"src": ["问题"], "tgt": ["回答"]}` |
 | "类型错误：期望 float，实际 str" | 超参数是字符串 | 去掉引号：`3` 不是 `"3"` |
@@ -507,8 +528,12 @@ python3 "$SKILL_PATH/scripts/train.py" --cancel JOB_ID  # 取消卡住的任务
 --list-models                   列出可用模型（白名单）
 --list-datasets                 列出内置推荐数据集
 --check-data <file>             检查数据格式
+--upload-plain-file FILE --train-data REPO_ID [--path-in-repo PATH]
+                                 用 Git contents API 上传普通文件；适合大 JSON/JSONL 或修复 LFS pointer
+  --remove-json-lfs-rules         同步移除 .gitattributes 中 JSON/JSONL LFS 规则
 --verify-upload --train-data REPO_ID --train-file F [--local-file FILE]
                                  验证上传结果并打印上传完成回执
+  --strict-lfs                    文件是 LFS 或 LFS pointer 时直接失败
 --suggest-params <file> [--model-type ernie|llama]  推荐超参数
 --submit ...                    提交训练任务
   --base-model MODEL              基底模型
