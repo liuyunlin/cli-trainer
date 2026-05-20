@@ -196,7 +196,39 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data sharegpt_data.jsonl
    - `--train-file` 是否和仓库内文件名完全一致
    - 训练文件大小是否接近本地文件；若 `is_lfs:true`，优先修复为普通 JSON/JSONL 后重试
    - 下载回本地后 `--check-data` 是否通过
-   - 如果新 commit 和新 `mount Job` 仍循环“正在等待数据集下载完成...”，通常是平台挂载任务卡住；停止反复重传，保留 jobId、repo_id、commitId、mount Job 和上传校验结果给平台排查。
+   - 如果新 commit 和新 `mount Job` 仍循环”正在等待数据集下载完成...”，通常是平台挂载任务卡住；停止反复重传，保留 jobId、repo_id、commitId、mount Job 和上传校验结果给平台排查。
+
+9. **为数据集仓库推送 README**
+
+   数据集仓库创建并验证上传通过后，必须自动为数据集写一份 README.md 并推送，方式与模型仓库相同（`GIT_ASKPASS` + sparse-checkout），remote 地址换成 `https://git.aistudio.baidu.com/$REPO_ID.git`。
+
+   README 内容至少包含以下字段（无法获取的字段整行省略，不留占位符）：
+
+   ```md
+   # {数据集仓库名}
+
+   ## 数据集简介
+
+   {一句话描述数据集的来源和用途}
+
+   ## 数据格式
+
+   {Alpaca / ShareGPT / ERNIE src-tgt}，示例：
+   {“instruction”: “...”, “input”: “...”, “output”: “...”}
+
+   ## 数据规模
+
+   - 样本数量：{N} 条
+   - 文件名：{TRAIN_FILE}
+
+   ## 适用任务
+
+   {任务类型，如：问答、对话、文本分类等}
+
+   ## 数据来源
+
+   由开发者上传至星河社区，用于 {基座模型名称} 监督微调。
+   ```
 
 ### 推荐超参并确认
 
