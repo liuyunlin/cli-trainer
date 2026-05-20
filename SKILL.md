@@ -88,15 +88,6 @@ export AISTUDIO_ACCESS_TOKEN
 
 **安全要求：不要把真实 token 写进命令行实参、URL、文件、notebook、日志或命令历史。** 例如避免使用 `aistudio upload ... --token YOUR_TOKEN`、`python train.py --api-key YOUR_TOKEN` 或 `https://TOKEN:TOKEN@...`，因为这些值可能被完整 argv、remote URL、终端日志或进程列表暴露。上传数据时优先使用 `aistudio_sdk.hub.upload_folder(..., token=os.environ["AISTUDIO_ACCESS_TOKEN"])`，token 只从当前 shell 环境变量或 SDK 缓存读取。若 token 已经出现在聊天、终端输出或日志中，训练结束后提醒用户立即重新生成。
 
-### 平台运行环境（已验证，2026-05-14）
-
-| 组件 | 版本 | 影响 |
-|------|------|------|
-| Transformers | **4.49.0** | Qwen3 需要 4.51+，平台**不支持**；Qwen2.5 完全支持 |
-| LlamaFactory | 未打印版本号 | 不支持 `deepseek_r1` chat template（所有 DeepSeek-R1 系列均失败）；`template` 超参数被 API 拒绝（code=10007） |
-| CUDA Runtime | corex-4.3.8 | - |
-| GPU 显存 | ~32GB | Full SFT 7B 时 OOM；LoRA + cutoff=2048 + batch=1 可稳定运行 |
-
 
 ### 选模型
 
