@@ -1041,10 +1041,10 @@ def cmd_env_check() -> None:
 def cmd_status(args: argparse.Namespace) -> None:
     token = load_token(args)
     data = api("GET", f"/v1/train/jobs/{args.status}", token, args.base_url)
-    _print_status(data)
+    _print_status(data, base_model=args.base_model or "")
 
 
-def _print_status(data: dict) -> None:
+def _print_status(data: dict, base_model: str = "") -> None:
     state = data.get("state", "未知")
     phase = data.get("currentPhase", "")
     error = data.get("errorMsg", "")
@@ -1117,7 +1117,7 @@ def _print_status(data: dict) -> None:
         print("Loss 解读：持续下降 = 正常；每个 epoch 开始时突然上升 = 正常；")
         print("         一直不降或乱跳 = 数据质量有问题，先检查格式。")
     elif state == "succeeded":
-        _print_test_guide(output or {})
+        _print_test_guide(output or {}, base_model=base_model)
     elif state == "failed":
         print("任务失败。常见原因：")
         print("  1. 数据格式错误（用 --check-data 检查）")
@@ -1125,7 +1125,7 @@ def _print_status(data: dict) -> None:
         print("  3. 数据集为空（确认文件已上传）")
 
 
-def _print_test_guide(output: dict) -> None:
+def _print_test_guide(output: dict, base_model: str = "") -> None:
     repo = output.get("modelRepo", "")
     separator = "=" * 55
 
@@ -1133,19 +1133,62 @@ def _print_test_guide(output: dict) -> None:
     print("  训练完成！以下是测试和使用模型的完整指南")
     print(separator)
 
-    if repo:
-        print(f"""
-【第一步：API 调用测试模型（推荐先做）】
+    is_ernie = "ERNIE" in base_model.upper() or "ernie" in base_model.lower() if base_model else None
 
-  训练完的模型通过 AiStudio API 调用，示例：
+    if repo:
+        if is_ernie is True:
+            print(f"""
+【第一步：API 调用测试模型（ERNIE 系列，推荐先做）】
+
+  ERNIE 微调模型可直接通过 AiStudio API 调用：
 
   curl -X POST https://aistudio.baidu.com/llm/lmapi/v1/chat/completions \\
     -H "Content-Type: application/json" \\
-    -H "Authorization: token <your_token>" \\
+    -H "Authorization: Bearer <your_token>" \\
     -d '{{
       "model": "{repo}",
       "messages": [{{"role": "user", "content": "你的测试问题"}}]
     }}'
+""")
+        elif is_ernie is False:
+            print(f"""
+【第一步：访问开源微调模型】
+
+  ⚠  注意：AI Studio /lmapi/v1/chat/completions 接口目前不路由开源微调模型——
+     无论传入什么 model 参数，该端点均返回 ERNIE（文心一言）的响应。
+
+  开源微调模型（Qwen/LLaMA/DeepSeek 等）的训练权重已保存到模型仓库，
+  有以下几种使用方式：
+
+  方式 A：在 AI Studio 网页端测试（最快）
+    1. 登录 https://aistudio.baidu.com
+    2. 进入"模型库" → 搜索或打开 {repo}
+    3. 在模型页面点击"对话测试"（如页面提供此功能）
+
+  方式 B：在 AI Studio Fork 并运行 Notebook
+    1. Fork 一个含 transformers + 模型加载代码的 Notebook
+    2. 把模型仓库路径改为 {repo}，运行推理代码
+
+  方式 C：下载模型权重本地推理
+    模型仓库：https://git.aistudio.baidu.com/{repo}
+    下载后用 transformers 或 llama.cpp 等框架本地运行
+
+  模型仓库地址：{repo}
+""")
+        else:
+            print(f"""
+【第一步：测试模型推理】
+
+  模型仓库：{repo}
+
+  如果是 ERNIE 系列模型，可通过 AiStudio API 直接调用：
+    curl -X POST https://aistudio.baidu.com/llm/lmapi/v1/chat/completions \\
+      -H "Content-Type: application/json" \\
+      -H "Authorization: Bearer <your_token>" \\
+      -d '{{"model": "{repo}", "messages": [{{"role": "user", "content": "你的测试问题"}}]}}'
+
+  如果是开源模型（Qwen/LLaMA 等），上述 API 端点会回退到 ERNIE，
+  请通过 AI Studio 网页对话测试 或 下载模型权重本地推理。
 """)
 
     print("""【第二步：验证微调效果的问题类型】
@@ -1178,20 +1221,19 @@ def _print_test_guide(output: dict) -> None:
 """)
 
     if repo:
-        print(f"""【第四步：API 调用（用代码接入）】
+        if is_ernie is not False:
+            print(f"""【第四步：API 调用（用代码接入）】
 
   训练完的模型可以通过 AiStudio API 调用：
   模型仓库：{repo}
   参考文档：https://aistudio.baidu.com/doc/model-api
 """)
 
-        print("""【第五步：发布状态】
+        print("""【发布状态】
 
   训练产物已经上传到模型仓库。Skill 默认按公开发布处理；
   如果 AiStudio 网页端显示该模型仍是私密，请到模型库页面改为公开，
   并补充模型卡片、开源协议和可见性设置。
-  API 调用成功代表当前账号/Token 下模型可用；是否已公开展示，
-  仍需要以 AiStudio 模型库网页端为准。
 """)
 
     print("如果效果不达预期，告诉我具体现象，我来帮你分析原因。")
@@ -1277,7 +1319,7 @@ def cmd_poll(args: argparse.Namespace) -> None:
 
             if state in terminal_states:
                 print()
-                _print_status(data)
+                _print_status(data, base_model=args.base_model or "")
                 if state in {"failed", "cancelled"}:
                     print("主动查看 system log：")
                     _print_job_log(job_id, token, args.base_url, system=True, limit=120, soft=True)

@@ -464,22 +464,30 @@ Playwright 操作要点（已踩坑）：
 检查顺序：
 1. 查 system/stdout 日志，确认出现类似 `LoRA 合并配置 export_config.yaml 已生成`、导出/上传模型文件完成等信息
 2. 查模型仓库文件，确认至少有 `model.safetensors`、`config.json`、`tokenizer.json`、`tokenizer_config.json`、`generation_config.json` 等直接推理所需文件
-3. 用 AiStudio API 对最终模型仓库做一次最小调用测试，确认 `errorCode: 0` 且能返回正常文本
 
-示例（避免把 token 展开到 `curl` 命令行参数中）：
+> ⚠ **开源模型推理 API 限制（已实测 2026-05-20）**：
+> AI Studio `/llm/lmapi/v1/chat/completions` 端点目前**只服务 ERNIE 系列模型**，忽略 `model` 参数中的开源微调模型路径。
+> 无论传 `model: “yunlin/train_xxxxxxxx”` 还是不存在的模型 ID，该端点均返回文心一言的响应（errorCode: 0）。
+>
+> 开源微调模型（Qwen/LLaMA/DeepSeek 等）的访问方式：
+> - **网页端测试**：登录 AI Studio → 模型库 → 打开对应模型仓库 → 点击”对话测试”（如页面提供）
+> - **Notebook 推理**：在 AI Studio 创建 Notebook，加载 `{repo}` 的 safetensors 权重用 transformers 推理
+> - **本地推理**：从 `https://git.aistudio.baidu.com/{repo}` 下载模型权重，本地运行
+
+对于 ERNIE 系列模型，可用以下方式验证（避免把 token 展开到命令行参数中）：
 ```python
 import os
 import requests
 
 resp = requests.post(
-    "https://aistudio.baidu.com/llm/lmapi/v1/chat/completions",
+    “https://aistudio.baidu.com/llm/lmapi/v1/chat/completions”,
     headers={
-        "Content-Type": "application/json",
-        "Authorization": f"token {os.environ['AISTUDIO_ACCESS_TOKEN']}",
+        “Content-Type”: “application/json”,
+        “Authorization”: f”Bearer {os.environ['AISTUDIO_ACCESS_TOKEN']}”,
     },
     json={
-        "model": "gitlogin/model_repo",
-        "messages": [{"role": "user", "content": "1+1等于几？只输出答案。"}],
+        “model”: “gitlogin/model_repo”,
+        “messages”: [{“role”: “user”, “content”: “1+1等于几？只输出答案。”}],
     },
     timeout=60,
 )
@@ -488,7 +496,6 @@ print(resp.json())
 
 判断标准：
 - 如果模型仓库只有 LoRA adapter 文件，没有完整权重/配置/tokenizer，不能直接按完整模型调用；需要平台完成合并导出，或另走 adapter 加载流程
-- 如果 API 调用成功，说明产物可作为完整模型使用；但可见性需到模型库网页确认，若仍私密则提醒用户改为公开
 - 最终答复用户时要区分”训练任务成功”和”模型产物已实测可用”
 
 ---
