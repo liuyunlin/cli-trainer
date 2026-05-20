@@ -145,8 +145,10 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data sharegpt_data.jsonl
    如果 web-access skill 不在默认目录，从实际 `SKILL.md` 路径解析目录；Chrome 出现远程调试授权时让用户允许，页面未登录时让用户在 Chrome 登录 AI Studio。
 
 2. **创建或确认数据集仓库**
-   - 在 `https://aistudio.baidu.com/my/dataset` 创建或打开数据集仓库。新建时英文 ID 用小写字母、数字、下划线；可见性按页面默认公开处理，除非用户明确要求私密或数据含隐私。
-   - 创建表单里的开源协议必须选择一个，公开数据集不选则可能无报错地创建失败。协议选择依据用户实际需求：允许商用且无特殊限制时选 **Apache 2.0**（AI Studio 开源模型和数据集最常见的默认选项）；数据来自受限来源或有归因要求时选 **CC BY 4.0**；有其他合规要求时按需选择，不要替用户默认选定。
+   - 在 `https://aistudio.baidu.com/my/dataset` 创建或打开数据集仓库。创建时需填写：
+     - **数据集英文ID**（必填）：用小写字母、数字、下划线，形如 `yunlin/my_dataset`
+     - **数据集展示名称**（选填）：面向社区展示，建议填写，描述数据集用途，最多 50 字
+     - **开源协议**（必选）：允许商用选 **Apache 2.0**；有归因要求选 **CC BY 4.0**；不选则创建可能静默失败
    - 创建或打开仓库后，从详情页读取完整 `repo_id`，形如 `gitlogin/repo_name`。不要用昵称、展示名、登录用户名或邮箱猜 `gitlogin`。
    - `aistudio upload` / `aistudio_sdk.hub.upload_file` 只上传到已有数据集仓库，不会自动创建 dataset repo。如果上传时报 `preupload` 404，优先检查仓库是否已在网页端创建、`repo_id` 是否来自详情页、token 是否对该仓库有写权限、仓库类型是否为 dataset。
    - 如果传 `--output-repo`，斜杠前半段必须和当前账号可写的 `gitlogin` 匹配。
@@ -200,34 +202,55 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data sharegpt_data.jsonl
 
 9. **为数据集仓库推送 README**
 
-   数据集仓库创建并验证上传通过后，必须自动为数据集写一份 README.md 并推送，方式与模型仓库相同（`GIT_ASKPASS` + sparse-checkout），remote 地址换成 `https://git.aistudio.baidu.com/$REPO_ID.git`。
+   数据集仓库创建并验证上传通过后，必须自动写一份 README.md 并推送，方式与模型仓库相同（`GIT_ASKPASS` + sparse-checkout），remote 地址换成 `https://git.aistudio.baidu.com/$REPO_ID.git`。
 
-   README 内容至少包含以下字段（无法获取的字段整行省略，不留占位符）：
+   README 以平台标准模板为基础，填入真实信息；无法获取的字段整行省略，不留占位符：
 
    ```md
-   # {数据集仓库名}
+   ---
+   license: Apache 2.0
+   application_domain:
+     - {应用领域，如 Technology / Healthcare / Finance / Education}
+   technical_domain:
+     - Fine-Tuning
+   ---
 
-   ## 数据集简介
+   # {数据集展示名称}介绍
 
-   {一句话描述数据集的来源和用途}
+   {一句话描述数据集来源和用途，用于 {基座模型名称} 监督微调。}
 
-   ## 数据格式
+   ## 数据集描述
 
-   {Alpaca / ShareGPT / ERNIE src-tgt}，示例：
-   {“instruction”: “...”, “input”: “...”, “output”: “...”}
+   - **数据来源**：由开发者上传至星河社区
+   - **数据类型**：文本
+   - **应用领域**：{任务类型/场景，如问答、对话、文本分类}
+   - **微调框架**：{LlamaFactory / PaddleFormers}
 
-   ## 数据规模
+   ## 数据集构成
 
-   - 样本数量：{N} 条
-   - 文件名：{TRAIN_FILE}
+   ### 数据结构
 
-   ## 适用任务
+   ```
+   {REPO_ID}/
+   └── {TRAIN_FILE}
+   ```
 
-   {任务类型，如：问答、对话、文本分类等}
+   ### 字段说明
 
-   ## 数据来源
+   {Alpaca 格式：}
+   | 字段名 | 类型 | 描述 |
+   |-|-|-|
+   | instruction | string | 问题/指令 |
+   | input | string | 补充上下文（可为空） |
+   | output | string | 期望回答 |
 
-   由开发者上传至星河社区，用于 {基座模型名称} 监督微调。
+   ### 数据规模
+
+   - 样本总数：{N} 条
+
+   ## 许可协议
+
+   本数据集采用 {协议名称} 协议，由开发者上传至星河社区用于模型微调研究。
    ```
 
 ### 推荐超参并确认
