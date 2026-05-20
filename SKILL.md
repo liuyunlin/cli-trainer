@@ -391,11 +391,14 @@ git sparse-checkout init --cone
 git sparse-checkout set README.md
 git checkout
 
-# 以标准模板为起点写入 README，按实际训练数据填充，无法获取的字段连同对应行删除
-cp "$SKILL_PATH/references/model-card-spec.md" README.md   # 用编辑器/heredoc 替换占位符后提交
-# 或直接 heredoc 覆盖：
+# 读取 model-card-spec.md §四 标准模板，填入真实训练数据，用 heredoc 写入：
 cat > README.md << 'READMEEOF'
-...以 model-card-spec.md §四 标准模板为起点，填充实际值，不留占位符...
+---
+license: Apache License 2.0
+
+---
+# 【{基座模型名称}】{场景/功能描述}
+...（按 §四 标准模板填充实际值，无法获取的字段整行删除，不留占位符）...
 READMEEOF
 
 git config user.email "$GIT_USER_EMAIL"   # 替换为真实邮箱，或用 git global config
