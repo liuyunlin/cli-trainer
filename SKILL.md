@@ -377,14 +377,14 @@ git sparse-checkout init --cone
 git sparse-checkout set README.md
 git checkout
 
-# 读取 model-card-spec.md §四 标准模板，填入真实训练数据，用 heredoc 写入：
+# 读取 references/model-card-spec.md，以其为模板填入真实训练数据，用 heredoc 写入：
 cat > README.md << 'READMEEOF'
 ---
 license: Apache License 2.0
 
 ---
 # 【{基座模型名称}】{场景/功能描述}
-...（按 §四 标准模板填充实际值，无法获取的字段整行删除，不留占位符）...
+...（按 references/model-card-spec.md 填充实际值，无法获取的字段整行删除，不留占位符）...
 READMEEOF
 
 git config user.email "$GIT_USER_EMAIL"   # 替换为真实邮箱，或用 git global config
@@ -394,7 +394,7 @@ git commit -m "docs: 完善模型卡片 README"
 GIT_ASKPASS="$ASKPASS_FILE" GIT_TERMINAL_PROMPT=0 git push origin master
 ```
 
-**Model Card 内容以 `$SKILL_PATH/references/model-card-spec.md` §四 标准模板为起点生成。** 根据实际训练数据填充各字段；无法获取的字段连同对应行一起删除，不留占位符。
+**Model Card 内容以 `$SKILL_PATH/references/model-card-spec.md` 为模板生成。** 根据实际训练数据填充各字段；无法获取的字段连同对应行一起删除，不留占位符。
 
 #### 第二步：设置模型元信息标签 + 确认公开状态
 
@@ -421,7 +421,7 @@ git push 只能更新 README 文件内容，**标签（多语言、任务方向�
 填写 commit 信息 → 点击"完成编辑"保存
 ```
 
-Playwright 操作要点（已踩坑）：
+Playwright 操作要点：
 - 弹出的多选框不在 accessibility tree 里，必须用坐标点击：先用 `page.evaluate` 找 span 的坐标，再 `page.mouse.click`
 - 训练框架是单选 combobox，直接点选项文本即可，无需确定按钮
 - 基座模型有搜索框，在弹窗内找到 `input[placeholder="请输入搜索关键词"]` 并区分它和顶部导航搜索框（用坐标或 index 区分）
@@ -533,5 +533,5 @@ python3 "$SKILL_PATH/scripts/train.py" --cancel JOB_ID  # 取消卡住的任务
 |------|---------|
 | `references/datasets.md` | 用户没有自己的数据，或问"用什么数据集好"时，先读此文件再推荐 |
 | `references/aistudio_sdk_upload.md` | 需要用 SDK 上传数据集时 |
-| `references/model-card-spec.md` | 训练 `succeeded` 后生成 README.md（Model Card）时读取，包含字段规范、命名规则和完整示例 |
+| `references/model-card-spec.md` | 训练 `succeeded` 后生成 README.md（Model Card）时读取，即 README 模板，填充后直接推送 |
 
