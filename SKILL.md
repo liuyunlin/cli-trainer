@@ -95,7 +95,7 @@ export AISTUDIO_ACCESS_TOKEN
 python3 "$SKILL_PATH/scripts/train.py" --list-models
 ```
 
-- 建议用白名单里的模型
+- 必须用白名单里的模型
 - 单卡最大 32B 以下，超过会 OOM
 - 训练方式默认 `SFT/Full`；只有明确需要 LoRA 时才传 `--train-type`
 - ERNIE → 框架 PaddleFormers，trainType 只能 `SFT/Full`，数据格式 src/tgt
