@@ -1238,20 +1238,20 @@ def cmd_poll(args: argparse.Namespace) -> None:
             state = data.get("state", "")
             phase = data.get("currentPhase", "")
 
-            # Tensorboard URL 可能在 waiting_data 阶段就生成；等 running 后再打开。
-            if not tb_opened and state == "running":
-                tb_url = data.get("tensorboardUrl", "")
-                if tb_url:
-                    print(f"\n  任务已进入 running，自动打开 Tensorboard…")
-                    _open_url(tb_url)
-                    print()
-                    tb_opened = True
-
-            # 单行进度
+            # 单行进度（先读，供 Tensorboard 判断用）
             progress = data.get("trainingProgress") or {}
             cur = progress.get("currentStep")
             tot = progress.get("totalSteps")
             remaining = progress.get("remainingTime", "")
+
+            # Tensorboard：等首个 step 数据写入后再打开，避免打开空看板
+            if not tb_opened and state == "running" and cur is not None and cur > 0:
+                tb_url = data.get("tensorboardUrl", "")
+                if tb_url:
+                    print(f"\n  训练已产生数据（step={cur}），自动打开 Tensorboard…")
+                    _open_url(tb_url)
+                    print()
+                    tb_opened = True
 
             ts = time.strftime("%H:%M:%S")
             if cur and tot:

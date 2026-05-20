@@ -262,38 +262,29 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 
 ### 命名规范
 
-提交任何 CLI 训练任务前都必须主动生成可读名称，避免平台默认产物显示为 `train_xxxxxxxx` 后难以区分。命名应包含模型简称、业务领域或任务类型、数据档位或版本，只使用小写字母、数字、下划线。
+提交训练前必须同时确定两个名称：
 
-推荐格式：
-- 任务名 `--name`：`{model_short}_{domain_or_task}_{profile}`，例如 `ernie03b_customer_qa_smoke`、`qwen25_7b_finance_summary_v1`、`llama3_legal_review_balanced`
-- 输出仓库 `--output-repo`：`{gitlogin}/{model_short}_{domain_or_task}_{profile}`，例如 `your_gitlogin/ernie03b_customer_qa_smoke`
+| 名称 | 参数 | 格式 | 示例 |
+|------|------|------|------|
+| 训练任务名 | `--name` | `{model_short}_{domain}_{profile}`，只用字母/数字/下划线 | `qwen25_05b_self_cognition_smoke` |
+| 模型仓库路径 | `--output-repo` | `{gitlogin}/{model_short}_{domain}_{profile}` | `yunlin/qwen25_05b_self_cognition_smoke` |
+| Model Card 标题 | README.md H1 | `【{基座模型名称}】{场景/功能描述}`，12 汉字以内 | `【Qwen2.5-0.5B-Instruct】自我认知助手` |
 
-提交前把建议名称展示给用户确认。若用户没有指定，按训练目标自动起名：从 `base_model` 提取模型简称（如 `ernie03b`、`qwen25_7b`），从数据集、文件名或用户目标提取领域/任务（如 `customer_qa`、`finance_summary`、`legal_review`、`medical_record`），从运行档位或版本提取 `smoke`、`balanced`、`thesis`、`v1`。`--name` 只控制训练任务名，不保证最终模型仓库名；如果不传 `--output-repo`，训练成功后的模型仓库可能仍由平台命名为 `train_xxxxxxxx`。需要最终模型仓库名可读时，必须显式传 `--output-repo`。传入前必须确认该 `gitlogin/repo` 属于当前账号可写命名空间，且没有和不相关的已有模型仓库冲突；不确定时只传 `--name`，训练完成后再补充模型卡片和 README。
+**`--output-repo` 必须显式传入**，否则平台自动生成 `train_xxxxxxxx`，无法通过模型库名称识别用途。  
+**确定 gitlogin 的方法**：查看任一已完成训练的 `modelOutputRepo.modelRepo`（如 `yunlin/train_8265ac9e`，斜杠前的 `yunlin` 即 gitlogin）；或通过 AI Studio 网页个人主页确认。  
+**确认命名空间可写**：只有当前 token 账号对应的 gitlogin 命名空间可写；传入 `--output-repo` 前确认仓库名未与现有非关联模型冲突。
 
-**Model Card 标题**（推送到模型仓库 README.md 的 H1）与训练任务名命名逻辑不同，按 `$SKILL_PATH/references/model-card-spec.md` §一 生成，格式为 `【{基座模型名称}】{场景/功能描述}`，场景描述 12 汉字以内。
+Model Card 标题（README H1）与仓库路径是两套命名：
+- 仓库路径（机器可读）→ `yunlin/qwen25_05b_self_cognition_smoke`
+- README H1（用户可见）→ `# 【Qwen2.5-0.5B-Instruct】自我认知助手`
+
+H1 按 `$SKILL_PATH/references/model-card-spec.md` §一 生成，推送 README 时写入。
 
 ### 提交
 
-默认只传可读任务名，让平台自动创建模型仓库：
-
 ```bash
 JOB_NAME="ernie03b_customer_qa_smoke"              # 按本次训练目标替换
-
-python3 "$SKILL_PATH/scripts/train.py" --submit \
-  --base-model "PaddlePaddle/ERNIE-4.5-0.3B-PT" \
-  --train-data "$REPO_ID" \
-  --train-file "$TRAIN_FILE" \
-  --name "$JOB_NAME" \
-  --params '{"num_train_epochs": 3, "per_device_train_batch_size": 4, "learning_rate": 5e-5, "max_seq_len": 512, "bf16": true}'
-```
-
-这个模式只保证任务列表里的名称可读；最终模型仓库仍可能是平台生成的 `train_xxxxxxxx`。如果用户明确要求模型仓库名也可读，使用下一段 `--output-repo` 示例。
-
-如果已经确认目标命名空间可写且仓库名不冲突，再显式指定最终模型仓库：
-
-```bash
-JOB_NAME="ernie03b_customer_qa_smoke"              # 按本次训练目标替换
-OUTPUT_REPO="your_gitlogin/ernie03b_customer_qa_smoke"
+OUTPUT_REPO="$GITLOGIN/$JOB_NAME"                  # 替换 $GITLOGIN 为真实 gitlogin，如 yunlin
 
 python3 "$SKILL_PATH/scripts/train.py" --submit \
   --base-model "PaddlePaddle/ERNIE-4.5-0.3B-PT" \
