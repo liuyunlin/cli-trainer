@@ -270,7 +270,7 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 
 提交前把建议名称展示给用户确认。若用户没有指定，按训练目标自动起名：从 `base_model` 提取模型简称（如 `ernie03b`、`qwen25_7b`），从数据集、文件名或用户目标提取领域/任务（如 `customer_qa`、`finance_summary`、`legal_review`、`medical_record`），从运行档位或版本提取 `smoke`、`balanced`、`thesis`、`v1`。`--name` 只控制训练任务名，不保证最终模型仓库名；如果不传 `--output-repo`，训练成功后的模型仓库可能仍由平台命名为 `train_xxxxxxxx`。需要最终模型仓库名可读时，必须显式传 `--output-repo`。传入前必须确认该 `gitlogin/repo` 属于当前账号可写命名空间，且没有和不相关的已有模型仓库冲突；不确定时只传 `--name`，训练完成后再补充模型卡片和 README。
 
-**Model Card 标题**（推送到模型仓库 README.md 的 H1）与训练任务名命名逻辑不同，按 `$SKILL_PATH/docs/model-card-spec.md` §一 生成，格式为 `【{基座模型名称}】{场景/功能描述}`，场景描述 12 汉字以内。
+**Model Card 标题**（推送到模型仓库 README.md 的 H1）与训练任务名命名逻辑不同，按 `$SKILL_PATH/references/model-card-spec.md` §一 生成，格式为 `【{基座模型名称}】{场景/功能描述}`，场景描述 12 汉字以内。
 
 ### 提交
 
@@ -417,7 +417,7 @@ GIT_ASKPASS="$ASKPASS_FILE" GIT_TERMINAL_PROMPT=0 git push origin master
 
 克隆时用 `--filter=blob:none --no-checkout` + sparse-checkout 只拉 README，跳过 LFS 大文件，速度快且不会因 LFS 报错中断。
 
-**Model Card 内容按 `$SKILL_PATH/docs/model-card-spec.md` 生成。** 读取该文件，根据实际训练数据填充各字段；无法从训练配置、日志或数据集元数据获取的字段，直接省略对应行/句/节，不留任何占位符。完整字段规范、命名规则和示例见 spec 文件。
+**Model Card 内容按 `$SKILL_PATH/references/model-card-spec.md` 生成。** 读取该文件，根据实际训练数据填充各字段；无法从训练配置、日志或数据集元数据获取的字段，直接省略对应行/句/节，不留任何占位符。完整字段规范、命名规则和示例见 spec 文件。
 
 #### 第二步：设置模型元信息标签 + 确认公开状态
 
@@ -555,5 +555,5 @@ python3 "$SKILL_PATH/scripts/train.py" --cancel JOB_ID  # 取消卡住的任务
 |------|---------|
 | `references/datasets.md` | 用户没有自己的数据，或问"用什么数据集好"时，先读此文件再推荐 |
 | `references/aistudio_sdk_upload.md` | 需要用 SDK 上传数据集时 |
-| `docs/model-card-spec.md` | 训练 `succeeded` 后生成 README.md（Model Card）时读取，包含字段规范、命名规则和完整示例 |
+| `references/model-card-spec.md` | 训练 `succeeded` 后生成 README.md（Model Card）时读取，包含字段规范、命名规则和完整示例 |
 
