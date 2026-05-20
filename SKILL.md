@@ -250,23 +250,18 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 
 ### 命名规范
 
-提交训练前必须同时确定两个名称：
+提交训练前必须同时确定以下名称：
 
-| 名称 | 参数 | 格式 | 示例 |
-|------|------|------|------|
+| 名称 | 填写位置 | 格式 | 示例 |
+|------|---------|------|------|
 | 训练任务名 | `--name` | `{model_short}_{domain}_{profile}`，只用字母/数字/下划线 | `qwen25_05b_self_cognition_smoke` |
-| 模型仓库路径 | `--output-repo` | `{gitlogin}/{model_short}_{domain}_{profile}` | `yunlin/qwen25_05b_self_cognition_smoke` |
-| Model Card 标题 | README.md H1 | `【{基座模型名称}】{场景/功能描述}`，12 汉字以内 | `【Qwen2.5-0.5B-Instruct】自我认知助手` |
+| 模型英文ID | `--output-repo` | `{gitlogin}/{model_short}_{domain}_{profile}` | `yunlin/qwen25_05b_self_cognition_smoke` |
+| 模型展示名称 | 创建模型表单「模型展示名称」字段 | `【{基座模型名称}】{场景/功能描述}`，12 汉字以内，最多 50 字 | `【Qwen2.5-0.5B-Instruct】自我认知助手` |
+| Model Card 标题（README H1） | README.md 第一行 | 与模型展示名称完全一致 | `# 【Qwen2.5-0.5B-Instruct】自我认知助手` |
 
 **`--output-repo` 必须显式传入**，否则平台自动生成 `train_xxxxxxxx`，无法通过模型库名称识别用途。  
 **确定 gitlogin 的方法**：查看任一已完成训练的 `modelOutputRepo.modelRepo`（如 `yunlin/train_8265ac9e`，斜杠前的 `yunlin` 即 gitlogin）；或通过 AI Studio 网页个人主页确认。  
 **确认命名空间可写**：只有当前 token 账号对应的 gitlogin 命名空间可写；传入 `--output-repo` 前确认仓库名未与现有非关联模型冲突。
-
-Model Card 标题（README H1）与仓库路径是两套命名：
-- 仓库路径（机器可读）→ `yunlin/qwen25_05b_self_cognition_smoke`
-- README H1（用户可见）→ `# 【Qwen2.5-0.5B-Instruct】自我认知助手`
-
-H1 按 `$SKILL_PATH/references/model-card-spec.md` §一 生成，推送 README 时写入。
 
 ### 提交
 
@@ -418,7 +413,7 @@ git push 只能更新 README 文件内容，**标签（多语言、任务方向�
 
 ```
 模型空间 Tab → 模型元信息 区域：
-- 模型展示名字：填入 Model Card 标题，格式 `【{基座模型名称}】{场景/功能描述}`，例如 `【Qwen2.5-0.5B-Instruct】自我认知助手`
+- 模型展示名称：填入 Model Card 标题，格式 `【{基座模型名称}】{场景/功能描述}`，与创建模型时填写的展示名称完全一致，例如 `【Qwen2.5-0.5B-Instruct】自我认知助手`
 - 多语言：点击添加 → 按上表选中对应语言 → 确定
 - 任务方向：点击添加 → 按上表选中 1-2 个任务标签 → 确定
 - 训练框架：下拉选择 ERNIEKit（ERNIE 模型）或 LlamaFactory（开源模型）
