@@ -320,6 +320,7 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 |---------|------------|
 | ERNIE-4.5-0.3B | `ernie45_03b` |
 | ERNIE-4.5-21B-A3B | `ernie45_21b` |
+| ERNIE-4.5-Turbo | `ernie45_turbo` |
 | Qwen2.5-0.5B-Instruct | `qwen25_05b` |
 | Qwen2.5-7B-Instruct | `qwen25_7b` |
 
