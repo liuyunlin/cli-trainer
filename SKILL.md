@@ -270,6 +270,8 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 
 提交前把建议名称展示给用户确认。若用户没有指定，按训练目标自动起名：从 `base_model` 提取模型简称（如 `ernie03b`、`qwen25_7b`），从数据集、文件名或用户目标提取领域/任务（如 `customer_qa`、`finance_summary`、`legal_review`、`medical_record`），从运行档位或版本提取 `smoke`、`balanced`、`thesis`、`v1`。`--name` 只控制训练任务名，不保证最终模型仓库名；如果不传 `--output-repo`，训练成功后的模型仓库可能仍由平台命名为 `train_xxxxxxxx`。需要最终模型仓库名可读时，必须显式传 `--output-repo`。传入前必须确认该 `gitlogin/repo` 属于当前账号可写命名空间，且没有和不相关的已有模型仓库冲突；不确定时只传 `--name`，训练完成后再补充模型卡片和 README。
 
+**Model Card 标题**（推送到模型仓库 README.md 的 H1）与训练任务名命名逻辑不同，按 `$SKILL_PATH/docs/model-card-spec.md` §一 生成，格式为 `【{基座模型名称}】{场景/功能描述}`，场景描述 12 汉字以内。
+
 ### 提交
 
 默认只传可读任务名，让平台自动创建模型仓库：
@@ -415,66 +417,7 @@ GIT_ASKPASS="$ASKPASS_FILE" GIT_TERMINAL_PROMPT=0 git push origin master
 
 克隆时用 `--filter=blob:none --no-checkout` + sparse-checkout 只拉 README，跳过 LFS 大文件，速度快且不会因 LFS 报错中断。
 
-**README 模板**（禁止保留任何 `{}` 占位符；模型名用"基座简称-领域-用途"如 `Qwen2.5-7B-客服助手`；超参从 `--params` JSON 提取；Loss 从 `--train-summary` 提取；适用场景根据数据和模型名推断 3-5 个具体业务动作）：
-
-```markdown
----
-license: Apache License 2.0
----
-
-## {模型名称}介绍
-
-基于 {base_model}，用 {N} 条 {领域} 数据微调，擅长 {具体能力}。
-
-## 模型信息
-
-| 项目 | 详情 |
-|------|------|
-| 基座模型 | {base_model} |
-| 训练框架 | {ERNIEKit 或 LlamaFactory} |
-| 训练方式 | {SFT/Full 或 SFT/LoRA} |
-| 训练数据集 | [{repo_id}](https://aistudio.baidu.com/datasetdetail/{DATASET_ID}) |
-| 训练数据规模 | {N} 条 |
-| 语言 | {中文 / English} |
-| 开源协议 | Apache License 2.0 |
-
-### 训练配置
-
-| 超参数 | 值 |
-|--------|-----|
-| num_train_epochs | {值} |
-| learning_rate | {值} |
-| cutoff_len / max_seq_len | {值} |
-| per_device_train_batch_size | {值} |
-| bf16 / fp16 | {值} |
-（SFT/LoRA 时追加 lora_rank / lora_alpha / lora_dropout）
-
-### 训练结果
-
-起始 Loss {值} → 最终 Loss {值}，下降 {%}%，收敛{正常/需关注}。
-
-## 适用场景
-
-- {场景 1，如：回答患者用药副作用问题}
-- {场景 2}
-- {场景 3}
-
-## 如何使用
-
-```python
-import requests
-resp = requests.post(
-    "https://aistudio.baidu.com/llm/lmapi/v1/chat/completions",
-    headers={"Content-Type": "application/json", "Authorization": "token YOUR_TOKEN"},
-    json={"model": "{REPO_ID}", "messages": [{"role": "user", "content": "你的问题"}]}
-)
-print(resp.json()["choices"][0]["message"]["content"])
-```
-
-## 局限性
-
-{训练数据分布局限、cutoff_len 截断风险、LoRA adapter 依赖基座等}
-```
+**Model Card 内容按 `$SKILL_PATH/docs/model-card-spec.md` 生成。** 读取该文件，根据实际训练数据填充各字段；无法从训练配置、日志或数据集元数据获取的字段，直接省略对应行/句/节，不留任何占位符。完整字段规范、命名规则和示例见 spec 文件。
 
 #### 第二步：设置模型元信息标签 + 确认公开状态
 
@@ -612,4 +555,5 @@ python3 "$SKILL_PATH/scripts/train.py" --cancel JOB_ID  # 取消卡住的任务
 |------|---------|
 | `references/datasets.md` | 用户没有自己的数据，或问"用什么数据集好"时，先读此文件再推荐 |
 | `references/aistudio_sdk_upload.md` | 需要用 SDK 上传数据集时 |
+| `docs/model-card-spec.md` | 训练 `succeeded` 后生成 README.md（Model Card）时读取，包含字段规范、命名规则和完整示例 |
 
