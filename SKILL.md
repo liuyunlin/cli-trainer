@@ -86,9 +86,6 @@ export AISTUDIO_ACCESS_TOKEN
 
 如果用户已在本机手工用 `aistudio config/login` 配过 token，脚本无环境变量时自动读取 SDK 缓存；环境变量里的过期 token 会覆盖缓存，遇到 401 先检查环境变量。
 
-**安全要求：不要把真实 token 写进命令行实参、URL、文件、notebook、日志或命令历史。** 例如避免使用 `aistudio upload ... --token YOUR_TOKEN`、`python train.py --api-key YOUR_TOKEN` 或 `https://TOKEN:TOKEN@...`，因为这些值可能被完整 argv、remote URL、终端日志或进程列表暴露。上传数据时优先使用 `aistudio_sdk.hub.upload_folder(..., token=os.environ["AISTUDIO_ACCESS_TOKEN"])`，token 只从当前 shell 环境变量或 SDK 缓存读取。
-
-
 ### 选模型
 
 ```bash
