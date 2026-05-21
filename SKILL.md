@@ -263,7 +263,7 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 |------|---------|------|------|
 | 训练任务名 | `--name` | `{model_short}_{domain}_{profile}`，只用字母/数字/下划线，**禁止缩写** | `ernie45_03b_self_cognition_smoke` |
 | 模型英文ID | `--output-repo` | `{gitlogin}/{model_short}_{domain}_{profile}` | `yunlin/ernie45_03b_self_cognition_smoke` |
-| 模型展示名称 | `--model-display-name` 目标值；训练成功后网页「模型展示名称」字段 | `【{基座模型名称}】{场景/功能描述}`，12 汉字以内，最多 50 字 | `【ERNIE-4.5-0.3B-PT】自我认知助手` |
+| 模型展示名称 | `--model-display-name` 目标值（仅记录/提示）；训练成功后网页「模型展示名称」字段 | `【{基座模型名称}】{场景/功能描述}`，12 汉字以内，最多 50 字 | `【ERNIE-4.5-0.3B-PT】自我认知助手` |
 | Model Card 标题（README H1） | README.md 第一行 | 与模型展示名称完全一致 | `# 【ERNIE-4.5-0.3B-PT】自我认知助手` |
 
 **`{基座模型名称}` 取自 `--list-models` 白名单输出的模型名**（org 前缀后的部分，如 `PaddlePaddle/ERNIE-4.5-0.3B-PT` → `ERNIE-4.5-0.3B-PT`），不要使用产品别名。
@@ -273,7 +273,7 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 **`{domain}` 拼写规则**：完整英文词组，下划线连接，**不得缩写**（`self_cognition` ✓，`selfcog` ✗；`customer_qa` ✓，`custqa` ✗）。
 
 **`--output-repo` 必须显式传入**，否则平台自动生成 `train_xxxxxxxx`，无法通过模型库名称识别用途。  
-**`--model-display-name` 必须同步传入**，作为网页展示名称的目标值，便于提交后自动记录和状态提示。
+**`--model-display-name` 必须同步传入**，作为网页展示名称的目标值，便于提交后自动记录和状态提示；它不会直接让训练提交接口设置网页展示名称。
 
 **重要：`--output-repo` 只控制模型英文 ID / repo_id，不控制网页展示名称。** 通过 `--submit --output-repo` 让平台自动创建模型仓库时，AI Studio 会先用 repo 名（如 `qwen25_05b_self_cognition_smoke`）初始化网页「模型展示名称」。因此训练 `succeeded` 后，必须进入 `modelsdetail/{数字ID}/setModel` →「设置」→「基础信息」→「编辑」，把「模型展示名称」改为 `--model-display-name` 指定的中文展示名（如 `【Qwen2.5-0.5B-Instruct】自我认知助手`），再点击「完成编辑」。不要把 README H1 已正确误认为网页展示名称已正确。
 
@@ -535,7 +535,7 @@ python3 "$SKILL_PATH/scripts/train.py" --cancel JOB_ID  # 取消卡住的任务
   --train-file FILENAME           数据文件名（如 train.jsonl）
   --params JSON                   超参数 JSON 字符串
   --name NAME                     任务名称（只允许字母、数字、下划线）
-  --model-display-name NAME       模型网页展示名称目标值；不等于 --output-repo，succeeded 后需网页校验/补改
+  --model-display-name NAME       模型网页展示名称目标值（仅记录/提示）；不等于 --output-repo，succeeded 后需网页校验/补改
   --output-repo GITLOGIN/REPO     模型输出仓库（可选，超过 30 个仓库时复用；命名空间必须可写）
   --max-run-time HOURS            最长运行时间（小时，1-240）
 --status <job_id>               查看任务状态

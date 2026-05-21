@@ -894,7 +894,7 @@ def cmd_submit(args: argparse.Namespace) -> None:
     print(f"  数据集：  {args.train_data}/{args.train_file or '（自动选择）'}")
     if args.model_display_name:
         print(f"  目标展示名：{args.model_display_name}")
-        print("  说明：训练提交接口不会直接设置网页展示名；任务成功后需到模型设置页校验/补改。")
+        print("  说明：该参数仅记录目标值；训练提交接口不会直接设置网页展示名，任务成功后需到模型设置页校验/补改。")
     if payload.get("hyperparameters"):
         print(f"  超参数：  {json.dumps(payload['hyperparameters'])}")
     print()
@@ -915,7 +915,7 @@ def cmd_submit(args: argparse.Namespace) -> None:
     print(f"  python3 {Path(__file__).name} --poll {job_id}")
     if args.model_display_name:
         print("\n模型展示名后续动作：")
-        print("  训练 succeeded 后，请进入 AI Studio 模型设置页确认网页展示名称。")
+        print("  训练 succeeded 后，请进入 AI Studio 模型设置页确认/补改网页展示名称。")
         print(f"  目标展示名：{args.model_display_name}")
 
 
@@ -1135,7 +1135,7 @@ def _print_status(data: dict) -> None:
         display_name = meta.get("modelDisplayName")
         if display_name:
             print(f"  目标展示名：  {display_name}")
-            print("  提醒：--output-repo 只控制 repo_id；请在网页设置页确认/补改模型展示名称。")
+            print("  提醒：--model-display-name 仅记录目标值，--output-repo 只控制 repo_id；请在网页设置页确认/补改模型展示名称。")
 
     if error:
         print(f"\n  错误信息：    {error}")
@@ -1950,7 +1950,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--params", metavar="JSON", help="超参数 JSON 字符串")
     p.add_argument("--name", metavar="NAME", help="任务名称（只允许字母、数字、下划线）")
     p.add_argument("--description", metavar="DESC", help="任务描述")
-    p.add_argument("--model-display-name", metavar="NAME", help="模型网页展示名称目标值；不等于 --output-repo，训练成功后需在网页设置页校验/补改")
+    p.add_argument("--model-display-name", metavar="NAME", help="模型网页展示名称目标值（仅记录/提示，不会直接设置后端展示名）；不等于 --output-repo，训练成功后需在网页设置页校验/补改")
     p.add_argument("--output-repo", metavar="GITLOGIN/REPO", help="模型输出仓库（可选；命名空间必须可写）")
     p.add_argument("--max-run-time", type=int, metavar="HOURS", help="最长运行时间（小时，1-240）")
 
