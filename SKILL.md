@@ -263,7 +263,7 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 |------|---------|------|------|
 | 训练任务名 | `--name` | `{model_short}_{domain}_{profile}`，只用字母/数字/下划线，**禁止缩写** | `ernie45_03b_self_cognition_smoke` |
 | 模型英文ID | `--output-repo` | `{gitlogin}/{model_short}_{domain}_{profile}` | `yunlin/ernie45_03b_self_cognition_smoke` |
-| 模型展示名称 | 创建模型表单「模型展示名称」字段 | `【{基座模型名称}】{场景/功能描述}`，12 汉字以内，最多 50 字 | `【ERNIE-4.5-0.3B-PT】自我认知助手` |
+| 模型展示名称 | `--model-display-name` 目标值；训练成功后网页「模型展示名称」字段 | `【{基座模型名称}】{场景/功能描述}`，12 汉字以内，最多 50 字 | `【ERNIE-4.5-0.3B-PT】自我认知助手` |
 | Model Card 标题（README H1） | README.md 第一行 | 与模型展示名称完全一致 | `# 【ERNIE-4.5-0.3B-PT】自我认知助手` |
 
 **`{基座模型名称}` 取自 `--list-models` 白名单输出的模型名**（org 前缀后的部分，如 `PaddlePaddle/ERNIE-4.5-0.3B-PT` → `ERNIE-4.5-0.3B-PT`），不要使用产品别名。
@@ -273,6 +273,10 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 **`{domain}` 拼写规则**：完整英文词组，下划线连接，**不得缩写**（`self_cognition` ✓，`selfcog` ✗；`customer_qa` ✓，`custqa` ✗）。
 
 **`--output-repo` 必须显式传入**，否则平台自动生成 `train_xxxxxxxx`，无法通过模型库名称识别用途。  
+**`--model-display-name` 必须同步传入**，作为网页展示名称的目标值，便于提交后自动记录和状态提示。
+
+**重要：`--output-repo` 只控制模型英文 ID / repo_id，不控制网页展示名称。** 通过 `--submit --output-repo` 让平台自动创建模型仓库时，AI Studio 会先用 repo 名（如 `qwen25_05b_self_cognition_smoke`）初始化网页「模型展示名称」。因此训练 `succeeded` 后，必须进入 `modelsdetail/{数字ID}/setModel` →「设置」→「基础信息」→「编辑」，把「模型展示名称」改为 `--model-display-name` 指定的中文展示名（如 `【Qwen2.5-0.5B-Instruct】自我认知助手`），再点击「完成编辑」。不要把 README H1 已正确误认为网页展示名称已正确。
+
 **确定 gitlogin 的方法**：查看任一已完成训练的 `modelOutputRepo.modelRepo`（如 `yunlin/train_8265ac9e`，斜杠前的 `yunlin` 即 gitlogin）；或通过 AI Studio 网页个人主页确认。  
 **确认命名空间可写**：只有当前 token 账号对应的 gitlogin 命名空间可写；传入 `--output-repo` 前确认仓库名未与现有非关联模型冲突。
 
@@ -281,6 +285,7 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 ```bash
 JOB_NAME="ernie45_03b_self_cognition_smoke"            # 按本次训练目标替换
 OUTPUT_REPO="$GITLOGIN/$JOB_NAME"                  # 替换 $GITLOGIN 为真实 gitlogin，如 yunlin
+MODEL_DISPLAY_NAME="【ERNIE-4.5-0.3B-PT】自我认知助手"
 
 python3 "$SKILL_PATH/scripts/train.py" --submit \
   --base-model "PaddlePaddle/ERNIE-4.5-0.3B-PT" \
@@ -288,6 +293,7 @@ python3 "$SKILL_PATH/scripts/train.py" --submit \
   --train-file "$TRAIN_FILE" \
   --name "$JOB_NAME" \
   --output-repo "$OUTPUT_REPO" \
+  --model-display-name "$MODEL_DISPLAY_NAME" \
   --params '{"num_train_epochs": 3, "per_device_train_batch_size": 4, "learning_rate": 5e-5, "max_seq_len": 512, "bf16": true}'
 ```
 
@@ -409,9 +415,9 @@ GIT_ASKPASS="$ASKPASS_FILE" GIT_TERMINAL_PROMPT=0 git push origin master
 
 **Model Card 内容以 `$SKILL_PATH/references/model-card-spec.md` 为模板生成。** 根据实际训练数据填充各字段；无法获取的字段连同对应行一起删除，不留占位符。
 
-#### 第二步：设置模型元信息标签 + 确认公开状态
+#### 第二步：设置模型展示名称、模型元信息标签 + 确认公开状态
 
-git push 只能更新 README 文件内容，**标签（多语言、任务方向、训练框架、基座模型）和公开状态必须通过网页端操作**。
+git push 只能更新 README 文件内容，**模型展示名称、标签（多语言、任务方向、训练框架、基座模型）和公开状态必须通过网页端操作**。尤其注意：自动创建仓库时网页展示名称通常会被初始化为 repo 名，必须在本步骤显式改成规范展示名。
 
 **默认标签选择规则**（根据训练场景选择，不要只选"文本生成"一个）：
 
@@ -529,6 +535,7 @@ python3 "$SKILL_PATH/scripts/train.py" --cancel JOB_ID  # 取消卡住的任务
   --train-file FILENAME           数据文件名（如 train.jsonl）
   --params JSON                   超参数 JSON 字符串
   --name NAME                     任务名称（只允许字母、数字、下划线）
+  --model-display-name NAME       模型网页展示名称目标值；不等于 --output-repo，succeeded 后需网页校验/补改
   --output-repo GITLOGIN/REPO     模型输出仓库（可选，超过 30 个仓库时复用；命名空间必须可写）
   --max-run-time HOURS            最长运行时间（小时，1-240）
 --status <job_id>               查看任务状态
