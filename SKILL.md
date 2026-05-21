@@ -270,10 +270,30 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 
 | 基座模型（白名单名） | model_short |
 |---------|------------|
-| ERNIE-4.5-0.3B-PT | `ernie45_03b` |
-| ERNIE-4.5-21B-A3B | `ernie45_21b` |
+| ERNIE-4.5-0.3B-PT | `ernie45_03b_pt` |
+| ERNIE-4.5-0.3B-Paddle | `ernie45_03b_paddle` |
+| ERNIE-4.5-0.3B-Base-PT | `ernie45_03b_base_pt` |
+| ERNIE-4.5-0.3B-Base-Paddle | `ernie45_03b_base_paddle` |
+| ERNIE-4.5-21B-A3B-PT | `ernie45_21b_pt` |
+| ERNIE-4.5-21B-A3B-Paddle | `ernie45_21b_paddle` |
+| ERNIE-4.5-21B-A3B-Base-PT | `ernie45_21b_base_pt` |
+| ERNIE-4.5-21B-A3B-Base-Paddle | `ernie45_21b_base_paddle` |
 | Qwen2.5-0.5B-Instruct | `qwen25_05b` |
+| Qwen2.5-3B-Instruct | `qwen25_3b` |
 | Qwen2.5-7B-Instruct | `qwen25_7b` |
+| Qwen2.5-14B-Instruct | `qwen25_14b` |
+| DeepSeek-R1-Distill-Qwen-1.5B | `dsr1_qwen_15b` |
+| DeepSeek-R1-Distill-Qwen-7B | `dsr1_qwen_7b` |
+| DeepSeek-R1-Distill-Qwen-14B | `dsr1_qwen_14b` |
+| DeepSeek-R1-Distill-Qwen-32B | `dsr1_qwen_32b` |
+| DeepSeek-R1-Distill-Llama-8B | `dsr1_llama_8b` |
+| Llama-3.1-8B-Instruct | `llama31_8b` |
+| Llama-3.2-1B-Instruct | `llama32_1b` |
+| Llama-3.2-3B-Instruct | `llama32_3b` |
+| MiniCPM4.1-8B | `minicpm41_8b` |
+| Baichuan2-13B-Base | `baichuan2_13b` |
+| chatglm2-6b | `chatglm2_6b` |
+| chatglm3-6b | `chatglm3_6b` |
 
 **`{domain}` 拼写规则**：完整英文词组，下划线连接，**不得缩写**（`self_cognition` ✓，`selfcog` ✗；`customer_qa` ✓，`custqa` ✗）。
 
@@ -425,7 +445,7 @@ git push 只能更新 README 文件内容，**标签（多语言、任务方向�
 | 多语言 | 中文数据 → **中文**；英文数据 → **English**；混合 → 两个都选 |
 | 任务方向 | 问答对 / QA / 知识库 → **问答** + **文本生成**<br>对话 / Chat / 角色扮演 → **文本对话** + **文本生成**<br>分类/NER/抽取 → **文本分类** 或 **命名实体识别**<br>写作/摘要 → **文本生成**<br>医疗/法律/金融等专业领域 → 在以上基础上额外添加对应领域标签 |
 | 训练框架 | ERNIE 系列 → **ERNIEKit**；Qwen/LLaMA 等 → **LlamaFactory** |
-| 基座模型 | 搜索 base_model 名称（如 `ERNIE-4.5-0.3B`），选中匹配项 |
+| 基座模型 | 搜索 base_model 名称（如 `ERNIE-4.5-0.3B-PT`），选中匹配项 |
 
 **优先使用 Playwright MCP 自动完成**（已验证可行）：
 
