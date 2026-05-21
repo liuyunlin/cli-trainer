@@ -86,7 +86,7 @@ export AISTUDIO_ACCESS_TOKEN
 
 如果用户已在本机手工用 `aistudio config/login` 配过 token，脚本无环境变量时自动读取 SDK 缓存；环境变量里的过期 token 会覆盖缓存，遇到 401 先检查环境变量。
 
-**安全要求：不要把真实 token 写进命令行实参、URL、文件、notebook、日志或命令历史。** 例如避免使用 `aistudio upload ... --token YOUR_TOKEN`、`python train.py --api-key YOUR_TOKEN` 或 `https://TOKEN:TOKEN@...`，因为这些值可能被完整 argv、remote URL、终端日志或进程列表暴露。上传数据时优先使用 `aistudio_sdk.hub.upload_folder(..., token=os.environ["AISTUDIO_ACCESS_TOKEN"])`，token 只从当前 shell 环境变量或 SDK 缓存读取。若 token 已经出现在聊天、终端输出或日志中，训练结束后提醒用户立即重新生成。
+**安全要求：不要把真实 token 写进命令行实参、URL、文件、notebook、日志或命令历史。** 例如避免使用 `aistudio upload ... --token YOUR_TOKEN`、`python train.py --api-key YOUR_TOKEN` 或 `https://TOKEN:TOKEN@...`，因为这些值可能被完整 argv、remote URL、终端日志或进程列表暴露。上传数据时优先使用 `aistudio_sdk.hub.upload_folder(..., token=os.environ["AISTUDIO_ACCESS_TOKEN"])`，token 只从当前 shell 环境变量或 SDK 缓存读取。
 
 
 ### 选模型
@@ -158,7 +158,7 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data sharegpt_data.jsonl
    - ERNIE 的 `src/tgt` JSONL、LlamaFactory 的 Alpaca/ShareGPT JSONL/JSON 都要检查；训练用 JSON/JSONL 推荐作为普通文件上传，便于下载回验和排查。
    - 如果已经上传成 LFS：不要直接判定训练必然失败。已实测部分 `is_lfs:true` 文件也可能被 AI Studio 成功挂载并完成训练；但它会降低可回验性，也会让 `waiting_data` 排查更困难。若任务卡在 `waiting_data`，优先删除旧 LFS 训练文件、移除 `.gitattributes` 中 JSON/JSONL LFS 规则，然后按本上传小节第 5 步 SDK 方案或第 6 步 CLI 方案重新上传。
 
-4. **上传前检查文件大小**：普通文件超过 5MB 平台会拒绝，不要改走 LFS 绕过限制。超过 5MB 时先告知用户，可选：裁剪过长样本、减少数据量、拆分批次，或确认平台是否支持多文件训练。
+4. **上传前检查文件大小**：普通文件超过 5MB 平台会拒绝，不要改走 LFS 绕过限制。超过 5MB 时先告知用户，可选：裁剪过长样本、减少数据量、拆分批次。
 
 5. **用 SDK 上传数据集文件夹（推荐）**
    - 上传原则见 `references/aistudio_sdk_upload.md`；主规则是：完整 `repo_id`、一仓一数据集、token 只走环境变量、JSON/JSONL 优先不走 LFS。
@@ -204,54 +204,7 @@ python3 "$SKILL_PATH/scripts/train.py" --check-data sharegpt_data.jsonl
 
    数据集仓库创建并验证上传通过后，必须自动写一份 README.md 并推送，方式与模型仓库相同（`GIT_ASKPASS` + sparse-checkout），remote 地址换成 `https://git.aistudio.baidu.com/$REPO_ID.git`。
 
-   README 以平台标准模板为基础，填入真实信息；无法获取的字段整行省略，不留占位符：
-
-   ```md
-   ---
-   license: Apache 2.0
-   application_domain:
-     - {应用领域，如 Technology / Healthcare / Finance / Education}
-   technical_domain:
-     - Fine-Tuning
-   ---
-
-   # {数据集展示名称}介绍
-
-   {一句话描述数据集来源和用途，用于 {基座模型名称} 监督微调。}
-
-   ## 数据集描述
-
-   - **数据来源**：由开发者上传至星河社区
-   - **数据类型**：文本
-   - **应用领域**：{任务类型/场景，如问答、对话、文本分类}
-   - **微调框架**：{LlamaFactory / PaddleFormers}
-
-   ## 数据集构成
-
-   ### 数据结构
-
-   ```
-   {REPO_ID}/
-   └── {TRAIN_FILE}
-   ```
-
-   ### 字段说明
-
-   {Alpaca 格式：}
-   | 字段名 | 类型 | 描述 |
-   |-|-|-|
-   | instruction | string | 问题/指令 |
-   | input | string | 补充上下文（可为空） |
-   | output | string | 期望回答 |
-
-   ### 数据规模
-
-   - 样本总数：{N} 条
-
-   ## 许可协议
-
-   本数据集采用 {协议名称} 协议，由开发者上传至星河社区用于模型微调研究。
-   ```
+   README 以平台标准模板为基础，填入真实信息；无法获取的字段整行省略，不留占位符。
 
 ### 推荐超参并确认
 
@@ -551,7 +504,6 @@ print(resp.json())
 | 训练完成后模型上传失败 | `gitlogin` 或 `--output-repo` 命名空间不可写/未初始化 | 用 web-access/CDP 创建一个空数据集仓库初始化命名空间；确认 `--output-repo` 前缀是可写 `gitlogin` 后重新提交 |
 | 微调后的模型再训练报错 | 平台白名单只允许官方模型 | 只能从官方基础模型重新训练，迭代时合并数据集 |
 | code=401 | Token 过期 | 重新获取 Access Token |
-| Qwen3 架构识别失败 | 平台 Transformers 版本旧 | 改用 `ModelHub/Qwen2.5-*` |
 | 文件选择不符合预期 | 未传 `--train-file`，平台自动选择了首个 JSON/JSONL；或文件名写错 | 显式加 `--train-file 文件名.jsonl` |
 
 ```bash
