@@ -420,7 +420,11 @@ git push 只能更新 README 文件内容，**标签（多语言、任务方向�
 | 训练框架 | ERNIE 系列 → **ERNIEKit**；Qwen/LLaMA 等 → **LlamaFactory** |
 | 基座模型 | 搜索 base_model 名称（如 `ERNIE-4.5-0.3B-PT`），选中匹配项 |
 
-**优先使用 Playwright MCP 自动完成**（已验证可行）：
+**操作前必须获取数字 modelId**：先导航到 `https://aistudio.baidu.com/my/models`，用 eval 找到目标模型 `<a>` 标签的 href，从中提取数字 ID（如 `48193`）。**不能用仓库路径 `yunlin/repo_name` 拼 URL**，否则 404，所有操作都打空炮。
+
+**优先使用 CDP（web-access）在设置页直接操作**：导航到 `https://aistudio.baidu.com/modelsdetail/{数字ID}/setModel`，点击「编辑」按钮，用 `execCommand('insertText')` 填写模型展示名称，点「完成编辑」；然后点「设为公开」。
+
+**Playwright MCP 备选**（已验证可行）：
 
 ```
 模型空间 Tab → 模型元信息 区域：
@@ -440,7 +444,9 @@ Playwright 操作要点：
 
 **确认公开状态**（必须主动执行）：
 
-导航到 `https://aistudio.baidu.com/modelsdetail/{MODEL_ID}/setModel`，检查右侧"其他设置"区域：
+`{MODEL_ID}` 是**数字 ID**，不是仓库路径。获取方式：导航到 `https://aistudio.baidu.com/my/models`，找到目标模型卡片，从 `<a>` 标签 href（如 `/modelsdetail/48193?modelId=48193`）提取数字 ID，再拼 setModel URL。
+
+导航到 `https://aistudio.baidu.com/modelsdetail/{数字ID}/setModel`，检查右侧"其他设置"区域：
 - 显示"当前模型状态为 **公开**" → 无需操作
 - 显示私密 → 点击"设为公开"切换
 
