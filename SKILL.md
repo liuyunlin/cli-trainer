@@ -75,14 +75,16 @@ bash "$WEB_ACCESS_SKILL_PATH/scripts/check-deps.sh"
 
 ### Token
 
-推荐使用环境变量，但不要把真实 token 直接写进 shell history。交互式输入后再导出：
+需要 token 时，**直接告诉用户**：「请把 https://aistudio.baidu.com/account/accessToken 页面的 token 粘贴给我，我来运行。」用户粘贴后，Agent 用以下方式在当前 shell 设置并使用，不要让用户自己执行任何 shell 命令：
+
 ```bash
-read -rsp "AI Studio Access Token: " AISTUDIO_ACCESS_TOKEN
-echo
-export AISTUDIO_ACCESS_TOKEN
+export AISTUDIO_ACCESS_TOKEN="用户粘贴的token"
+python3 "$SKILL_PATH/scripts/train.py" --verify-token
 ```
 
 验证：`python3 "$SKILL_PATH/scripts/train.py" --verify-token`
+
+如果用户已在本机手工用 `aistudio config/login` 配过 token，脚本无环境变量时自动读取 SDK 缓存；环境变量里的过期 token 会覆盖缓存，遇到 401 先检查环境变量。
 
 如果用户已在本机手工用 `aistudio config/login` 配过 token，脚本无环境变量时自动读取 SDK 缓存；环境变量里的过期 token 会覆盖缓存，遇到 401 先检查环境变量。
 
