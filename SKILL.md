@@ -266,34 +266,7 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 
 **`{基座模型名称}` 取自 `--list-models` 白名单输出的模型名**（org 前缀后的部分，如 `PaddlePaddle/ERNIE-4.5-0.3B-PT` → `ERNIE-4.5-0.3B-PT`），不要使用产品别名。
 
-**`{model_short}` 拼写规则**：`{family}{version}_{size}`，均用小写，版本和尺寸间用下划线隔开。
-
-| 基座模型（白名单名） | model_short |
-|---------|------------|
-| ERNIE-4.5-0.3B-PT | `ernie45_03b_pt` |
-| ERNIE-4.5-0.3B-Paddle | `ernie45_03b_paddle` |
-| ERNIE-4.5-0.3B-Base-PT | `ernie45_03b_base_pt` |
-| ERNIE-4.5-0.3B-Base-Paddle | `ernie45_03b_base_paddle` |
-| ERNIE-4.5-21B-A3B-PT | `ernie45_21b_pt` |
-| ERNIE-4.5-21B-A3B-Paddle | `ernie45_21b_paddle` |
-| ERNIE-4.5-21B-A3B-Base-PT | `ernie45_21b_base_pt` |
-| ERNIE-4.5-21B-A3B-Base-Paddle | `ernie45_21b_base_paddle` |
-| Qwen2.5-0.5B-Instruct | `qwen25_05b` |
-| Qwen2.5-3B-Instruct | `qwen25_3b` |
-| Qwen2.5-7B-Instruct | `qwen25_7b` |
-| Qwen2.5-14B-Instruct | `qwen25_14b` |
-| DeepSeek-R1-Distill-Qwen-1.5B | `dsr1_qwen_15b` |
-| DeepSeek-R1-Distill-Qwen-7B | `dsr1_qwen_7b` |
-| DeepSeek-R1-Distill-Qwen-14B | `dsr1_qwen_14b` |
-| DeepSeek-R1-Distill-Qwen-32B | `dsr1_qwen_32b` |
-| DeepSeek-R1-Distill-Llama-8B | `dsr1_llama_8b` |
-| Llama-3.1-8B-Instruct | `llama31_8b` |
-| Llama-3.2-1B-Instruct | `llama32_1b` |
-| Llama-3.2-3B-Instruct | `llama32_3b` |
-| MiniCPM4.1-8B | `minicpm41_8b` |
-| Baichuan2-13B-Base | `baichuan2_13b` |
-| chatglm2-6b | `chatglm2_6b` |
-| chatglm3-6b | `chatglm3_6b` |
+**`{model_short}` 推导规则**：取白名单模型名（去掉 org 前缀），全部小写，`.` 去掉，`-` 换 `_`，`_instruct` 后缀省略。示例：`ERNIE-4.5-0.3B-PT` → `ernie45_03b_pt`，`Qwen2.5-7B-Instruct` → `qwen25_7b`，`DeepSeek-R1-Distill-Qwen-7B` → `deepseek_r1_distill_qwen_7b`。
 
 **`{domain}` 拼写规则**：完整英文词组，下划线连接，**不得缩写**（`self_cognition` ✓，`selfcog` ✗；`customer_qa` ✓，`custqa` ✗）。
 
