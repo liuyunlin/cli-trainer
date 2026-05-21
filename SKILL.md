@@ -259,18 +259,19 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 
 | 名称 | 填写位置 | 格式 | 示例 |
 |------|---------|------|------|
-| 训练任务名 | `--name` | `{model_short}_{domain}_{profile}`，只用字母/数字/下划线，**禁止缩写** | `ernie45_turbo_chaoshan_chat_smoke` |
-| 模型英文ID | `--output-repo` | `{gitlogin}/{model_short}_{domain}_{profile}` | `yunlin/ernie45_turbo_chaoshan_chat_smoke` |
-| 模型展示名称 | 创建模型表单「模型展示名称」字段 | `【{基座模型名称}】{场景/功能描述}`，12 汉字以内，最多 50 字 | `【ERNIE-4.5-Turbo】潮汕超话训练` |
-| Model Card 标题（README H1） | README.md 第一行 | 与模型展示名称完全一致 | `# 【ERNIE-4.5-Turbo】潮汕超话训练` |
+| 训练任务名 | `--name` | `{model_short}_{domain}_{profile}`，只用字母/数字/下划线，**禁止缩写** | `ernie45_03b_self_cognition_smoke` |
+| 模型英文ID | `--output-repo` | `{gitlogin}/{model_short}_{domain}_{profile}` | `yunlin/ernie45_03b_self_cognition_smoke` |
+| 模型展示名称 | 创建模型表单「模型展示名称」字段 | `【{基座模型名称}】{场景/功能描述}`，12 汉字以内，最多 50 字 | `【ERNIE-4.5-0.3B-PT】自我认知助手` |
+| Model Card 标题（README H1） | README.md 第一行 | 与模型展示名称完全一致 | `# 【ERNIE-4.5-0.3B-PT】自我认知助手` |
+
+**`{基座模型名称}` 取自 `--list-models` 白名单输出的模型名**（org 前缀后的部分，如 `PaddlePaddle/ERNIE-4.5-0.3B-PT` → `ERNIE-4.5-0.3B-PT`），不要使用产品别名。
 
 **`{model_short}` 拼写规则**：`{family}{version}_{size}`，均用小写，版本和尺寸间用下划线隔开。
 
-| 基座模型 | model_short |
+| 基座模型（白名单名） | model_short |
 |---------|------------|
-| ERNIE-4.5-0.3B | `ernie45_03b` |
+| ERNIE-4.5-0.3B-PT | `ernie45_03b` |
 | ERNIE-4.5-21B-A3B | `ernie45_21b` |
-| ERNIE-4.5-Turbo | `ernie45_turbo` |
 | Qwen2.5-0.5B-Instruct | `qwen25_05b` |
 | Qwen2.5-7B-Instruct | `qwen25_7b` |
 
@@ -283,7 +284,7 @@ python3 "$SKILL_PATH/scripts/train.py" --suggest-params 数据文件.jsonl --mod
 ### 提交
 
 ```bash
-JOB_NAME="ernie45_turbo_chaoshan_chat_smoke"          # 按本次训练目标替换
+JOB_NAME="ernie45_03b_self_cognition_smoke"            # 按本次训练目标替换
 OUTPUT_REPO="$GITLOGIN/$JOB_NAME"                  # 替换 $GITLOGIN 为真实 gitlogin，如 yunlin
 
 python3 "$SKILL_PATH/scripts/train.py" --submit \
