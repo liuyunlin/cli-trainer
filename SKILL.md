@@ -396,6 +396,10 @@ git sparse-checkout init --cone
 git sparse-checkout set README.md
 git checkout
 
+# ⚠️ 重要：sparse-checkout 后 git status 会显示其他文件为"未跟踪"或"已删除"。
+# 只能 git add README.md，绝对不能 git add . 或 git add -A，
+# 否则会把模型权重等文件当作删除提交，破坏仓库。
+
 # 读取 references/model-card-spec.md，以其为模板填入真实训练数据，用 heredoc 写入：
 cat > README.md << 'READMEEOF'
 ---
